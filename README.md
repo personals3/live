@@ -50,10 +50,23 @@ and feeds all survive unchanged — this is presentation-layer work.
 | Redesign milestone | State |
 |---|---|
 | R1 — scroll rig: camera path, placeholder panels, snap/reverse/clamp | ✅ |
-| R2 — real panel content, portfolio styling, progress rail, hero/release | ⬜ |
-| R3 — scripted demo events per section over subtle ambient stream | ⬜ |
-| R4 — cinematography: shadows/AO/DOF/grain/reflective platform, ?quality | ⬜ |
-| R5 — mobile polish + attract loop capture path | ⬜ |
+| R2 — real panel content, portfolio styling, progress rail, hero/release | ✅ |
+| R3 — scripted demo events per section over subtle ambient stream | ✅ |
+| R4 — cinematography: shadows/contact discs/DOF/grain/platform, ?quality | ✅ |
+| R5 — mobile polish + attract loop capture path | ✅ |
+
+Quality tiers: `?quality=high|low` overrides; coarse pointers and small
+screens default low (bloom only, no shadows, DPR ≤ 1.5); desktops default
+high (soft shadows, depth of field aimed at each shot's subject, radial
+chromatic aberration, vignette, fine grain). Sustained frame time over
+20 ms auto-degrades high → low at runtime. `?attract=1` hides the story
+and runs a slow 28 s authored camera loop for screen recordings. On
+mobile the panels become bottom sheets; `prefers-reduced-motion` stills
+the hint and badge animations.
+
+A planar-reflection floor was considered for R4 and deliberately passed
+over — it renders the scene twice, which the Iris Xe budget can't absorb;
+the platform's metallic sheen under the key light is the stand-in.
 
 Scroll mechanics (R1): 8 full-viewport sections snap gently
 (CSS `proximity`); a damped rig follows scroll so fast scrolling or
@@ -128,11 +141,13 @@ connection attempts).
 
 ```
 src/
-  main.ts       entry — App + Director + event feed
-  app.ts        engine shell: renderer, camera, orbit, bloom, labels, loop
+  main.ts       entry — App + rigs + Director + ScriptDirector + feeds
+  app.ts        engine: renderer, quality tiers, bloom + cine stack, loop
+  story.ts      StoryRig (scroll → camera), AttractRig, rail/panel wiring
+  script.ts     per-section scripted demos (R3)
   scene.ts      environment + floor plan + particle routes → SceneControls
   diorama.ts    the 8 structures; reactive ones expose control handles
-  director.ts   protocol events → scene motion (pure dispatch)
+  director.ts   protocol events → scene motion (+ demo hooks, ambient damp)
   events.ts     the typed event protocol (shared contract with the server)
   live.ts       SSE connector — backoff, up/down callbacks, frame validation
   mock.ts       fake-but-plausible event stream (fallback + ?mock=1)

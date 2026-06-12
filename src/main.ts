@@ -4,7 +4,7 @@ import { LiveFeed } from "./live";
 import { MockFeed } from "./mock";
 import { INTRO_TOTAL_S } from "./scene";
 import { ScriptDirector } from "./script";
-import { StoryRig, wireStoryDOM } from "./story";
+import { AttractRig, StoryRig, wireStoryDOM } from "./story";
 
 const container = document.getElementById("app");
 if (!container) throw new Error("#app container missing from index.html");
@@ -13,11 +13,20 @@ const app = new App(container);
 const director = new Director(app.controls);
 const handle = director.handle.bind(director);
 
-// Scroll story: the rig owns the camera until the release section; the
-// script director runs each section's demo loop as it comes into view.
-app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on), app.focus));
-const script = new ScriptDirector(app.controls, director);
-wireStoryDOM((i) => script.onSection(i));
+const params = new URLSearchParams(location.search);
+
+if (params.has("attract")) {
+  // Attract mode: slow authored loop for screen recordings — no story
+  // DOM, full ambient stream.
+  document.body.classList.add("attract");
+  app.setRig(new AttractRig(app.camera, app.focus));
+} else {
+  // Scroll story: the rig owns the camera until the release section; the
+  // script director runs each section's demo loop as it comes into view.
+  app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on), app.focus));
+  const script = new ScriptDirector(app.controls, director);
+  wireStoryDOM((i) => script.onSection(i));
+}
 
 // Connection state shows in two places: the HUD chip and the hero chip.
 const chips = [
@@ -36,7 +45,7 @@ function setBadge(text: string, state: "mock" | "live" | "reconnecting"): void {
 // beautiful whenever the socket is unreachable; ?mock=1 forces mock.
 // Feeds start after the assembly intro so nothing flies at a half-built
 // room.
-const forceMock = new URLSearchParams(location.search).has("mock");
+const forceMock = params.has("mock");
 const mock = new MockFeed();
 
 function startFeeds(): void {

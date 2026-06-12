@@ -101,6 +101,48 @@ export class StoryRig {
 }
 
 /**
+ * Attract mode (?attract=1): a slow, closed authored loop around the room
+ * for screen recordings — one full circuit in ~28s, story DOM hidden,
+ * ambient stream at full. Visits every structure at varied heights.
+ */
+export class AttractRig {
+  private readonly curve = new THREE.CatmullRomCurve3(
+    [
+      new THREE.Vector3(16, 10, 10),
+      new THREE.Vector3(8, 4, 12), //   past storage
+      new THREE.Vector3(-2, 3, 11), //  over the cleaner's patch
+      new THREE.Vector3(-10, 5, 4), //  postgres side
+      new THREE.Vector3(-9, 7.5, -6), // up at the tunnel portal
+      new THREE.Vector3(0, 4, -10), //  along the nginx exit path
+      new THREE.Vector3(9, 3, -6), //   furnace side
+      new THREE.Vector3(15, 8, 2),
+    ],
+    true,
+    "centripetal",
+  );
+  private t = 0;
+  private readonly pos = new THREE.Vector3();
+  private readonly look = new THREE.Vector3();
+
+  constructor(
+    private readonly camera: THREE.PerspectiveCamera,
+    private readonly focus?: THREE.Vector3,
+  ) {}
+
+  update(dt: number): void {
+    this.t = (this.t + dt / 28) % 1;
+    this.curve.getPoint(this.t, this.pos);
+    // The gaze drifts gently around the room's heart instead of staring
+    // at a fixed point — reads as a camera operator, not a turntable.
+    const a = this.t * Math.PI * 2;
+    this.look.set(Math.sin(a) * 2.5, 1.6 + Math.sin(a * 2) * 0.4, Math.cos(a) * 2.5);
+    this.camera.position.copy(this.pos);
+    this.camera.lookAt(this.look);
+    this.focus?.copy(this.look);
+  }
+}
+
+/**
  * Panel dock-in, progress rail, keyboard paging. `onSection` fires once
  * whenever the nearest section changes (drives the rail and, in R3, the
  * scripted demos).

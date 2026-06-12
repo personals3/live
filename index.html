@@ -257,6 +257,46 @@
           opacity: 0.35;
         }
       }
+
+      /* Attract mode (?attract=1): just the room, for screen recordings. */
+      body.attract {
+        overflow: hidden;
+      }
+      body.attract main,
+      body.attract #rail,
+      body.attract .scroll-hint {
+        display: none;
+      }
+
+      /* Mobile: panels become bottom sheets; hero/release stay centered. */
+      @media (max-width: 768px) {
+        .panel:not(.center) {
+          left: 12px;
+          right: 12px;
+          top: auto;
+          bottom: 14px;
+          max-width: none;
+          transform: translateY(14px);
+          padding: 16px 18px 14px;
+          font-size: 12px;
+        }
+        .panel:not(.center).visible {
+          transform: translateY(0);
+        }
+        .panel.center {
+          max-width: 86vw;
+        }
+        #rail {
+          right: 6px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scroll-hint,
+        .source-chip.reconnecting {
+          animation: none;
+        }
+      }
       #stats {
         position: fixed;
         top: 10px;
