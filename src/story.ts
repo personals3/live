@@ -97,8 +97,12 @@ export class StoryRig {
   }
 }
 
-/** Panel dock-in + keyboard paging. Call once after DOM is ready. */
-export function wireStoryDOM(): void {
+/**
+ * Panel dock-in, progress rail, keyboard paging. `onSection` fires once
+ * whenever the nearest section changes (drives the rail and, in R3, the
+ * scripted demos).
+ */
+export function wireStoryDOM(onSection: (i: number) => void = () => {}): void {
   const observer = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
@@ -109,13 +113,39 @@ export function wireStoryDOM(): void {
   );
   document.querySelectorAll(".panel").forEach((p) => observer.observe(p));
 
+  const sections = Array.from(document.querySelectorAll("main section"));
+  const dots = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("#rail button"),
+  );
+
+  // Rail dots navigate; the active dot tracks scroll.
+  for (const dot of dots) {
+    dot.addEventListener("click", () => {
+      const i = Number(dot.dataset.section ?? 0);
+      sections[i]?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  let current = -1;
+  const syncSection = (): void => {
+    const i = THREE.MathUtils.clamp(
+      Math.round(window.scrollY / window.innerHeight),
+      0,
+      sections.length - 1,
+    );
+    if (i === current) return;
+    current = i;
+    dots.forEach((d, n) => d.classList.toggle("active", n === i));
+    onSection(i);
+  };
+  window.addEventListener("scroll", syncSection, { passive: true });
+  syncSection();
+
   // Explicit PgUp/PgDn section stepping — native paging lands between
   // snap points in some browsers.
-  const sections = Array.from(document.querySelectorAll("main section"));
   window.addEventListener("keydown", (e) => {
     if (e.key !== "PageDown" && e.key !== "PageUp") return;
     e.preventDefault();
-    const current = Math.round(window.scrollY / window.innerHeight);
     const next = THREE.MathUtils.clamp(
       current + (e.key === "PageDown" ? 1 : -1),
       0,

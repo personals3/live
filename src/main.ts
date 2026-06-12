@@ -16,11 +16,17 @@ const handle = director.handle.bind(director);
 app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on)));
 wireStoryDOM();
 
-const badge = document.getElementById("hud-source");
+// Connection state shows in two places: the HUD chip and the hero chip.
+const chips = [
+  document.getElementById("hud-source"),
+  document.getElementById("hero-chip"),
+];
 function setBadge(text: string, state: "mock" | "live" | "reconnecting"): void {
-  if (!badge) return;
-  badge.textContent = text;
-  badge.className = state;
+  for (const chip of chips) {
+    if (!chip) continue;
+    chip.textContent = text;
+    chip.className = `source-chip ${state}`;
+  }
 }
 
 // Source policy: live telemetry by default; the mock keeps the scene

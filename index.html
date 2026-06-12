@@ -4,13 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05070d" />
+    <meta
+      name="description"
+      content="A live 3D view of the PersonalS3 homelab — self-hosted S3-compatible storage and media pipeline, rendered as a machine room driven by real telemetry."
+    />
+    <meta property="og:title" content="PersonalS3 — Live" />
+    <meta
+      property="og:description"
+      content="Follow a file through a real homelab: tunnel, API, storage, transcoder — every motion driven by live telemetry."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://live.personals3.tech" />
     <title>PersonalS3 — Live</title>
     <style>
       :root {
         --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
         --green: #2bff88;
-        --panel-bg: rgba(6, 10, 16, 0.72);
-        --panel-border: rgba(43, 255, 136, 0.35);
+        --green-dim: rgba(43, 255, 136, 0.35);
+        --ink: #c6d4e2;
+        --ink-dim: rgba(160, 190, 210, 0.7);
+        --panel-bg: rgba(5, 9, 14, 0.78);
       }
       html {
         scroll-snap-type: y proximity;
@@ -43,64 +56,130 @@
         pointer-events: none; /* let the canvas see the pointer in explore */
       }
 
-      /* Terminal-styled panels (placeholder styling — R2 does it properly) */
+      /* ---- Panels: the portfolio's terminal opened a door ---------------- */
       .panel {
         pointer-events: auto;
         position: absolute;
         left: 5vw;
         top: 50%;
         transform: translateY(-50%) translateX(-14px);
-        max-width: 380px;
+        max-width: 400px;
         background: var(--panel-bg);
-        border: 1px solid var(--panel-border);
-        border-radius: 4px;
-        padding: 18px 22px;
-        font: 13px/1.65 var(--mono);
-        color: #c6d4e2;
+        border: 1px solid var(--green-dim);
+        border-radius: 3px;
+        padding: 20px 24px 18px;
+        font: 13px/1.7 var(--mono);
+        color: var(--ink);
         opacity: 0;
-        transition: opacity 0.28s ease, transform 0.28s ease;
-        backdrop-filter: blur(6px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        backdrop-filter: blur(7px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
       }
       .panel.visible {
         opacity: 1;
         transform: translateY(-50%) translateX(0);
       }
+      .panel .no {
+        font: 600 10px/1 var(--mono);
+        color: var(--ink-dim);
+        letter-spacing: 0.22em;
+      }
       .panel h2 {
-        margin: 0 0 8px;
-        font: 700 12px/1 var(--mono);
+        margin: 6px 0 10px;
+        font: 700 15px/1.3 var(--mono);
+        color: #e8f2fa;
+        letter-spacing: 0.04em;
+      }
+      .panel h2 em {
+        font-style: normal;
         color: var(--green);
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
       }
       .panel .cmd {
+        display: block;
         color: var(--green);
+        margin-bottom: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .panel .cmd::before {
+        content: "$ ";
+        color: var(--ink-dim);
       }
       .panel p {
         margin: 0;
       }
+      .panel p + p {
+        margin-top: 8px;
+      }
+      .panel [data-callout] {
+        border-bottom: 1px dotted var(--green-dim);
+        transition: color 0.25s ease, border-color 0.25s ease;
+      }
+      .panel [data-callout].flash {
+        color: var(--green);
+        border-color: var(--green);
+      }
 
-      /* Hero + release: centered, border-free */
+      /* Hero + release: centered, typography-led */
       .panel.center {
         left: 50%;
         right: auto;
-        max-width: 560px;
+        max-width: 600px;
         text-align: center;
         background: transparent;
         border: none;
         backdrop-filter: none;
+        box-shadow: none;
         transform: translate(-50%, -50%) translateY(10px);
       }
       .panel.center.visible {
         transform: translate(-50%, -50%);
       }
+      .hero-over {
+        font: 600 11px/1 var(--mono);
+        color: var(--ink-dim);
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+      }
       .hero-title {
-        font: 700 clamp(26px, 4.5vw, 40px) / 1.2 var(--mono);
+        font: 700 clamp(26px, 4.5vw, 42px) / 1.2 var(--mono);
         color: #e8f2fa;
-        margin: 10px 0 6px;
-        text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
+        margin: 14px 0 10px;
+        text-shadow: 0 2px 28px rgba(0, 0, 0, 0.95);
       }
       .hero-sub {
-        color: rgba(180, 205, 225, 0.85);
+        color: var(--ink-dim);
+        max-width: 460px;
+        margin: 0 auto;
+      }
+      .hero-chiprow {
+        margin-top: 16px;
+      }
+      .links {
+        display: flex;
+        gap: 18px;
+        justify-content: center;
+        margin-top: 16px;
+        flex-wrap: wrap;
+      }
+      .links a {
+        color: var(--green);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+        padding-bottom: 1px;
+      }
+      .links a:hover {
+        border-bottom-color: var(--green);
+      }
+      .links a::before {
+        content: "→ ";
+        color: var(--ink-dim);
+      }
+      .colophon {
+        margin-top: 14px;
+        font-size: 11px;
+        color: rgba(120, 150, 175, 0.55);
       }
       .scroll-hint {
         position: absolute;
@@ -108,7 +187,7 @@
         left: 50%;
         transform: translateX(-50%);
         font: 12px var(--mono);
-        color: rgba(140, 170, 195, 0.7);
+        color: var(--ink-dim);
         animation: hint-bob 2.2s ease-in-out infinite;
         pointer-events: none;
       }
@@ -118,6 +197,66 @@
         }
       }
 
+      /* ---- Progress rail -------------------------------------------------- */
+      #rail {
+        position: fixed;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 10;
+      }
+      #rail button {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      #rail button::after {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        border: 1px solid var(--green-dim);
+        background: transparent;
+        transition: background 0.25s, box-shadow 0.25s, border-color 0.25s;
+      }
+      #rail button.active::after {
+        background: var(--green);
+        border-color: var(--green);
+        box-shadow: 0 0 8px var(--green);
+      }
+
+      /* ---- Status chips / HUD --------------------------------------------- */
+      .source-chip {
+        padding: 2px 8px;
+        border: 1px solid rgba(255, 176, 32, 0.5);
+        border-radius: 3px;
+        color: #ffb020;
+        letter-spacing: 0.1em;
+        font: 11px/1.6 var(--mono);
+        transition: color 0.4s, border-color 0.4s;
+      }
+      .source-chip.live {
+        border-color: var(--green-dim);
+        color: var(--green);
+      }
+      .source-chip.reconnecting {
+        border-color: rgba(255, 176, 32, 0.5);
+        color: #ffb020;
+        animation: hud-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes hud-pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
       #stats {
         position: fixed;
         top: 10px;
@@ -166,32 +305,10 @@
         gap: 10px;
         align-items: center;
         font: 11px/1.4 var(--mono);
-        color: rgba(160, 190, 210, 0.7);
+        color: var(--ink-dim);
         user-select: none;
         pointer-events: none;
         z-index: 10;
-      }
-      #hud-source {
-        padding: 2px 7px;
-        border: 1px solid rgba(255, 176, 32, 0.5);
-        border-radius: 3px;
-        color: #ffb020;
-        letter-spacing: 0.1em;
-        transition: color 0.4s, border-color 0.4s;
-      }
-      #hud-source.live {
-        border-color: rgba(43, 255, 136, 0.5);
-        color: var(--green);
-      }
-      #hud-source.reconnecting {
-        border-color: rgba(255, 176, 32, 0.5);
-        color: #ffb020;
-        animation: hud-pulse 1.6s ease-in-out infinite;
-      }
-      @keyframes hud-pulse {
-        50% {
-          opacity: 0.35;
-        }
       }
     </style>
   </head>
@@ -199,80 +316,151 @@
     <div id="app"></div>
     <div id="stats"></div>
     <div id="hud">
-      <span id="hud-source">MOCK DATA</span>
+      <span id="hud-source" class="source-chip">MOCK DATA</span>
       <span id="hud-uptime">up —</span>
     </div>
 
-    <!-- Placeholder copy throughout — R2 replaces it with reviewed content. -->
+    <nav id="rail" aria-label="sections">
+      <button data-section="0" title="hero"></button>
+      <button data-section="1" title="the door"></button>
+      <button data-section="2" title="the brain"></button>
+      <button data-section="3" title="the shelf"></button>
+      <button data-section="4" title="the furnace"></button>
+      <button data-section="5" title="the mouth"></button>
+      <button data-section="6" title="the janitor"></button>
+      <button data-section="7" title="explore"></button>
+    </nav>
+
     <main>
       <section id="hero">
         <div class="panel center">
-          <div class="cmd">$ tail -f homelab</div>
-          <div class="hero-title">This is my real infrastructure, live.</div>
-          <p class="hero-sub">Follow a file through the machine room.</p>
+          <div class="hero-over">personals3 · homelab</div>
+          <div class="panel-cmd cmd" style="text-align:center">tail -f homelab</div>
+          <h1 class="hero-title">This is my real infrastructure, live.</h1>
+          <p class="hero-sub">
+            A self-hosted S3 + media pipeline on hardware under my desk.
+            Everything moving below is driven by its telemetry. Scroll to
+            follow a file through the machine room.
+          </p>
+          <div class="hero-chiprow">
+            <span id="hero-chip" class="source-chip">MOCK DATA</span>
+          </div>
         </div>
         <div class="scroll-hint">▼ scroll</div>
       </section>
 
       <section id="door">
         <div class="panel">
-          <h2>The door</h2>
-          <p><span class="cmd">$ cloudflared tunnel run</span><br />
-            Everything enters through a Cloudflare Tunnel — the host opens
-            zero inbound ports. <em>(placeholder copy)</em></p>
+          <div class="no">01 / INGRESS</div>
+          <h2>The door is <em>outbound-only</em></h2>
+          <span class="cmd">cloudflared tunnel run personals3</span>
+          <p>
+            Every byte enters through a Cloudflare Tunnel — a persistent
+            connection the homelab dials <em>out</em> to the edge. The
+            machine itself opens zero inbound ports: no exposed IP, no
+            firewall holes, nothing to scan. TLS ends at the edge; what
+            comes down the pipe is already vetted traffic.
+          </p>
         </div>
       </section>
 
       <section id="brain">
         <div class="panel">
-          <h2>The brain</h2>
-          <p>The Go API (chi) authenticates every request — SigV4, API
-            keys, or JWT — pinging Valkey for rate limits and the
-            PostgreSQL vault for metadata. <em>(placeholder copy)</em></p>
+          <div class="no">02 / CONTROL</div>
+          <h2>One Go binary decides <em>everything</em></h2>
+          <span class="cmd">curl -H "Authorization: AWS4-HMAC-SHA256 …"</span>
+          <p>
+            The API speaks three dialects of trust — AWS SigV4 for S3
+            tooling, API keys for scripts, JWT for the dashboard — and
+            checks quota atomically before a single byte lands.
+          </p>
+          <p>
+            The <span data-callout="valkey">amber glint</span> is the
+            rate-limit round trip to Valkey. The
+            <span data-callout="pg">ice-blue pulse</span> is metadata
+            committing to PostgreSQL — every object is a row before it is
+            a file.
+          </p>
         </div>
       </section>
 
       <section id="shelf">
         <div class="panel">
-          <h2>The shelf</h2>
-          <p>Objects land content-addressed on disk: temp-write, fsync,
-            atomic rename. Quota charged before bytes. <em>(placeholder
-            copy)</em></p>
+          <div class="no">03 / PERSISTENCE</div>
+          <h2>Bytes land <em>atomically</em> or not at all</h2>
+          <span class="cmd">write → fsync → rename</span>
+          <p>
+            Objects live content-addressed on disk. Uploads stream into a
+            temp file, fsync, then one atomic rename — a power cut cannot
+            leave half a file pretending to be whole. Quota is reserved in
+            a single conditional UPDATE before the write begins.
+          </p>
+          <p>The tank's level is this disk's real fill percentage.</p>
         </div>
       </section>
 
       <section id="furnace">
         <div class="panel">
-          <h2>The furnace</h2>
-          <p>An FFmpeg worker claims jobs with
-            <span class="cmd">FOR UPDATE SKIP LOCKED</span> and burns video
-            into an HLS ladder. <em>(placeholder copy)</em></p>
+          <div class="no">04 / TRANSCODE</div>
+          <h2>The furnace runs on <em>SKIP LOCKED</em></h2>
+          <span class="cmd">SELECT … FOR UPDATE SKIP LOCKED</span>
+          <p>
+            Upload a video and an FFmpeg worker claims the job straight
+            out of PostgreSQL — no broker, no queue service, just a row
+            lock. VA-API silicon burns it into an adaptive HLS ladder
+            while progress heartbeats back every second.
+          </p>
+          <p>The ring is live job progress. The burst is a finished encode.</p>
         </div>
       </section>
 
       <section id="mouth">
         <div class="panel">
-          <h2>The mouth</h2>
-          <p>Segments stream straight off disk through nginx —
-            zero-copy sendfile; the API never touches a playing video.
-            <em>(placeholder copy)</em></p>
+          <div class="no">05 / DELIVERY</div>
+          <h2>Streams never wake the <em>API</em></h2>
+          <span class="cmd">sendfile(2) → Cloudflare edge</span>
+          <p>
+            Finished segments are served straight off disk by nginx —
+            zero-copy sendfile with immutable cache headers, so the edge
+            keeps replaying a popular video worldwide while the Go process
+            sleeps through the whole show.
+          </p>
         </div>
       </section>
 
       <section id="janitor">
         <div class="panel">
-          <h2>The janitor</h2>
-          <p>A cleaner service sweeps with an adaptive Merkle trie —
-            orphans reaped, disk and database always agreeing.
-            <em>(placeholder copy)</em></p>
+          <div class="no">06 / INTEGRITY</div>
+          <h2>The janitor trusts <em>nothing</em></h2>
+          <span class="cmd">cleaner --interval 30s</span>
+          <p>
+            A separate service walks an adaptive Merkle trie over the
+            disk, comparing reality against the database — orphaned files
+            get two strikes, then they're reaped. Verification cost grows
+            with churn, not with how much is stored.
+          </p>
+          <p>
+            When the drone stops and pulls motes off the floor, that is
+            real space being reclaimed.
+          </p>
         </div>
       </section>
 
       <section id="release">
         <div class="panel center">
-          <div class="cmd">$ explore</div>
-          <p class="hero-sub">Drag to orbit · scroll to zoom · the room is
-            yours now. <em>(links + footer in R2)</em></p>
+          <div class="panel-cmd cmd" style="text-align:center">explore</div>
+          <p class="hero-sub">
+            The room is yours — drag to orbit, scroll to zoom. Everything
+            keeps happening whether you watch or not.
+          </p>
+          <div class="links">
+            <a href="https://personals3.tech">personals3.tech</a>
+            <a href="https://github.com/personals3">github</a>
+            <a href="https://abhishek.gitdeploy.online">portfolio</a>
+          </div>
+          <div class="colophon">
+            three.js · SSE telemetry from the real API · no analytics
+          </div>
         </div>
       </section>
     </main>
