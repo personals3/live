@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { makeLabel } from "./labels";
+import { makeCounter, makeLabel } from "./labels";
 import { applyRim, bodyMaterial, COLORS, neonMaterial } from "./materials";
 import type { Updatable } from "./scene";
 
@@ -18,6 +18,35 @@ import type { Updatable } from "./scene";
 export interface Structure {
   group: THREE.Group;
   update?: Updatable;
+}
+
+// Control handles — how the director (events) reaches into structures.
+export interface ApiCoreHandle extends Structure {
+  /** Breathing rate follows the request rate. */
+  setReqPerMin(n: number): void;
+  /** Brief red flicker on a 4xx/5xx. */
+  flashError(): void;
+  setCounterText(text: string): void;
+}
+
+export interface FurnaceHandle extends Structure {
+  start(job: string): void;
+  progress(job: string, pct: number): void;
+  finish(job: string): void;
+  setCounterText(text: string): void;
+}
+
+export interface StorageHandle extends Structure {
+  /** Tank level eases toward the real disk percentage. */
+  setFillPct(pct: number): void;
+  /** Quick glow blip when an upload lands. */
+  blip(): void;
+  setCounterText(text: string): void;
+}
+
+export interface ValkeyHandle extends Structure {
+  /** Each request spins the cache a little faster; decays back to idle. */
+  nudge(): void;
 }
 
 /**
@@ -109,10 +138,10 @@ export function buildTunnel(beamLength: number): Structure {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Go API core — hex tower, green bands breathing. m4: pulse rate tracks
-//    req/min and the bands flicker red on 4xx/5xx.
+// 2. Go API core — hex tower; band breathing rate = request rate, brief
+//    red flicker on errors, req/min counter chip.
 // ---------------------------------------------------------------------------
-export function buildApiCore(): Structure {
+export function buildApiCore(): ApiCoreHandle {
   const group = new THREE.Group();
 
   const tower = new THREE.Mesh(
@@ -146,11 +175,33 @@ export function buildApiCore(): Structure {
   label.position.set(0, 4.6, 0);
   group.add(label);
 
+  const counter = makeCounter();
+  counter.object.position.set(0, 4.15, 0);
+  group.add(counter.object);
+
+  // Breathing frequency in Hz, driven by req/min (idle floor → busy cap).
+  let pulseHz = 0.4;
+  let errorLeft = 0;
+
   return {
     group,
+    setReqPerMin: (n) => {
+      pulseHz = Math.min(0.4 + n / 80, 2.5);
+    },
+    flashError: () => {
+      errorLeft = 0.18;
+    },
+    setCounterText: (text) => counter.set(text),
     update: (dt, t) => {
-      // Idle breathing. m4: frequency scales with request rate.
-      bandMaterial.emissiveIntensity = baseIntensity * (1 + 0.25 * Math.sin(t * 2.4));
+      if (errorLeft > 0) {
+        errorLeft -= dt;
+        bandMaterial.emissive.setHex(COLORS.red);
+        bandMaterial.emissiveIntensity = baseIntensity * 2.2;
+      } else {
+        bandMaterial.emissive.setHex(COLORS.green);
+        bandMaterial.emissiveIntensity =
+          baseIntensity * (1 + 0.25 * Math.sin(t * pulseHz * Math.PI * 2));
+      }
       beacon.rotation.y += dt * 0.8;
     },
   };
@@ -204,7 +255,7 @@ export function buildPostgres(): Structure {
 // ---------------------------------------------------------------------------
 // 4. Valkey — cache = motion: orbiters racing around a tilted ring.
 // ---------------------------------------------------------------------------
-export function buildValkey(): Structure {
+export function buildValkey(): ValkeyHandle {
   const group = new THREE.Group();
 
   const pedestal = new THREE.Mesh(
@@ -242,19 +293,26 @@ export function buildValkey(): Structure {
   label.position.set(0, 2.6, 0);
   group.add(label);
 
+  const IDLE_SPEED = 4;
+  let speed = IDLE_SPEED;
+
   return {
     group,
+    nudge: () => {
+      speed = Math.min(speed + 1.5, 11);
+    },
     update: (dt) => {
-      spinner.rotation.z += dt * 4; // m4: spin rate nudges up on cache hits
+      spinner.rotation.z += dt * speed;
+      speed += (IDLE_SPEED - speed) * dt * 1.2; // decay back to idle
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// 5. FFmpeg worker — furnace. Idle ember now; m4 ignites it during a
-//    transcode and animates the progress ring.
+// 5. FFmpeg worker — furnace. Ignites on transcode_start (heat shimmer
+//    while burning), progress arc fills with the job, dies back to ember.
 // ---------------------------------------------------------------------------
-export function buildFurnace(): Structure {
+export function buildFurnace(): FurnaceHandle {
   const group = new THREE.Group();
 
   const iron = bodyMaterial(COLORS.magenta, 0.15, { flatShading: true });
@@ -266,35 +324,103 @@ export function buildFurnace(): Structure {
   chimney.position.set(0.6, 2.35, -0.6);
   group.add(chimney);
 
-  // Furnace mouth — the magenta glow. Idle = faint ember at 0.35.
-  // m4: transcode_start ramps this to ~2.0 with heat shimmer.
+  // Mouth glow in "cyan units" (neonMaterial compensates magenta ~2.4x);
+  // remember the multiplier so targets can be set in units too.
+  const IDLE_UNITS = 0.35;
+  const BURN_UNITS = 2.2;
   const mouth = new THREE.Mesh(
     new THREE.PlaneGeometry(1.2, 0.7),
-    neonMaterial(COLORS.magenta, 0.35),
+    neonMaterial(COLORS.magenta, IDLE_UNITS),
   );
   mouth.position.set(0, 0.75, 1.01);
   group.add(mouth);
+  const unitScale = mouth.material.emissiveIntensity / IDLE_UNITS;
 
-  // Progress ring above the mouth — dark until a job runs.
-  // m4: arc length = transcode_progress pct, full magenta.
-  const progressRing = new THREE.Mesh(
+  // Track ring: always-visible dim circle the progress arc fills in.
+  const track = new THREE.Mesh(
     new THREE.TorusGeometry(0.55, 0.05, 8, 40),
     neonMaterial(COLORS.magenta, 0.1),
   );
-  progressRing.position.set(0, 1.95, 1.01);
-  group.add(progressRing);
+  track.position.set(0, 1.95, 1.01);
+  group.add(track);
+
+  // Progress arc — geometry rebuilt per progress event (~2/s while a job
+  // runs; never per-frame). Starts at 12 o'clock, sweeps clockwise.
+  const arcMaterial = neonMaterial(COLORS.magenta, 1.8);
+  const arc = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.06, 8, 40, 0.01), arcMaterial);
+  arc.position.set(0, 1.95, 1.02);
+  arc.rotation.z = Math.PI / 2;
+  arc.visible = false;
+  group.add(arc);
 
   const label = makeLabel("FFMPEG WORKER", COLORS.magenta);
   label.position.set(0, 3.2, 0);
   group.add(label);
 
-  return { group };
+  const counter = makeCounter();
+  counter.object.position.set(0, 2.75, 0);
+  group.add(counter.object);
+
+  // The furnace renders ONE job (the most recent start); the counter chip
+  // shows how many are burning in total.
+  const jobs = new Set<string>();
+  let shown: string | null = null;
+  let targetUnits = IDLE_UNITS;
+  let currentUnits = IDLE_UNITS;
+
+  const setArcPct = (pct: number): void => {
+    arc.visible = pct >= 2;
+    if (!arc.visible) return;
+    arc.geometry.dispose();
+    arc.geometry = new THREE.TorusGeometry(
+      0.55,
+      0.06,
+      8,
+      40,
+      (Math.min(pct, 100) / 100) * Math.PI * 2,
+    );
+  };
+
+  return {
+    group,
+    start: (job) => {
+      jobs.add(job);
+      shown = job;
+      targetUnits = BURN_UNITS;
+      setArcPct(0);
+    },
+    progress: (job, pct) => {
+      jobs.add(job); // late joiners (page opened mid-job) still ignite
+      targetUnits = BURN_UNITS;
+      shown ??= job;
+      if (job === shown) setArcPct(pct);
+    },
+    finish: (job) => {
+      jobs.delete(job);
+      if (job === shown) shown = jobs.values().next().value ?? null;
+      if (jobs.size === 0) {
+        targetUnits = IDLE_UNITS;
+        setArcPct(0);
+      }
+    },
+    setCounterText: (text) => counter.set(text),
+    update: (dt, t) => {
+      currentUnits += (targetUnits - currentUnits) * Math.min(dt * 3, 1);
+      // Heat shimmer: two incommensurate sines read as fire, not a strobe.
+      const shimmer =
+        currentUnits > IDLE_UNITS * 1.5
+          ? 1 + 0.12 * Math.sin(t * 23) + 0.08 * Math.sin(t * 7.3)
+          : 1;
+      mouth.material.emissiveIntensity = currentUnits * unitScale * shimmer;
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
-// 6. Storage — translucent tank; fill height = disk usage.
+// 6. Storage — translucent tank; fill height eases toward the real disk %,
+//    with a glow blip whenever an upload lands.
 // ---------------------------------------------------------------------------
-export function buildStorage(): Structure {
+export function buildStorage(): StorageHandle {
   const group = new THREE.Group();
   const TANK_HEIGHT = 3;
 
@@ -327,15 +453,20 @@ export function buildStorage(): Structure {
   shell.position.y = 0.3 + TANK_HEIGHT / 2;
   group.add(shell);
 
-  // The liquid. m4: scale.y / position.y bind to stats.disk_used_pct —
-  // PLACEHOLDER level until then.
-  const fillPct = 0.42;
+  // The liquid — level eases toward stats.disk_used_pct.
   const fill = new THREE.Mesh(
     new THREE.CylinderGeometry(0.88, 0.88, TANK_HEIGHT, 24),
     neonMaterial(COLORS.fill, 0.8),
   );
-  fill.scale.y = fillPct;
-  fill.position.y = 0.3 + (TANK_HEIGHT * fillPct) / 2;
+  const fillBase = fill.material.emissiveIntensity;
+  let level = 0.42; // sensible pre-first-stats default
+  let targetLevel = level;
+  let blipLeft = 0;
+  const applyLevel = (): void => {
+    fill.scale.y = Math.max(level, 0.02);
+    fill.position.y = 0.3 + (TANK_HEIGHT * Math.max(level, 0.02)) / 2;
+  };
+  applyLevel();
   group.add(fill);
 
   const cap = new THREE.Mesh(
@@ -349,7 +480,27 @@ export function buildStorage(): Structure {
   label.position.set(0, 4.2, 0);
   group.add(label);
 
-  return { group };
+  const counter = makeCounter();
+  counter.object.position.set(0, 3.75, 0);
+  group.add(counter.object);
+
+  return {
+    group,
+    setFillPct: (pct) => {
+      targetLevel = Math.min(Math.max(pct / 100, 0), 1);
+    },
+    blip: () => {
+      blipLeft = 0.35;
+    },
+    setCounterText: (text) => counter.set(text),
+    update: (dt) => {
+      level += (targetLevel - level) * Math.min(dt * 1.5, 1);
+      applyLevel();
+      if (blipLeft > 0) blipLeft -= dt;
+      const blip = Math.max(blipLeft, 0) / 0.35;
+      fill.material.emissiveIntensity = fillBase * (1 + blip * 1.4);
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

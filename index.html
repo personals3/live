@@ -52,11 +52,45 @@
         vertical-align: 1px;
         box-shadow: 0 0 6px currentColor;
       }
+      .counter {
+        font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+        color: #7fe9ff;
+        text-shadow:
+          0 0 8px rgba(0, 229, 255, 0.55),
+          0 1px 6px rgba(0, 0, 0, 0.9);
+        user-select: none;
+      }
+      #hud {
+        position: fixed;
+        left: 12px;
+        bottom: 10px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: rgba(160, 190, 210, 0.7);
+        user-select: none;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #hud-source {
+        padding: 2px 7px;
+        border: 1px solid rgba(255, 176, 32, 0.5);
+        border-radius: 3px;
+        color: #ffb020;
+        letter-spacing: 0.1em;
+      }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="stats"></div>
+    <div id="hud">
+      <span id="hud-source">MOCK DATA</span>
+      <span id="hud-uptime">up —</span>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

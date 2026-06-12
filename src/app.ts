@@ -8,7 +8,7 @@ import {
   RenderPass,
 } from "postprocessing";
 
-import { buildScene, type Updatable } from "./scene";
+import { buildScene, type SceneControls, type Updatable } from "./scene";
 import { FpsMeter } from "./stats";
 
 /** Re-enable the slow ambient orbit this long after the user lets go. */
@@ -22,12 +22,15 @@ const AUTO_ORBIT_RESUME_MS = 8_000;
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly controls: OrbitControls;
+  private readonly orbit: OrbitControls;
   private readonly composer: EffectComposer;
   private readonly labelRenderer: CSS2DRenderer;
   private readonly scene: THREE.Scene;
   private readonly updatables: Updatable[];
   private readonly fps: FpsMeter;
+
+  /** Handles the Director uses to drive the scene from events. */
+  readonly controls: SceneControls;
 
   private rafId = 0;
   private lastTime = 0;
@@ -68,20 +71,22 @@ export class App {
     );
     this.camera.position.set(14, 11, 14);
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 1.8, 0);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.06;
-    this.controls.minDistance = 6;
-    this.controls.maxDistance = 40;
+    this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
+    this.orbit.target.set(0, 1.8, 0);
+    this.orbit.enableDamping = true;
+    this.orbit.dampingFactor = 0.06;
+    this.orbit.minDistance = 6;
+    this.orbit.maxDistance = 40;
     // Keep the camera above the floor plane.
-    this.controls.maxPolarAngle = Math.PI * 0.46;
-    this.controls.enablePan = false;
-    this.controls.autoRotate = true;
-    this.controls.autoRotateSpeed = 0.5;
+    this.orbit.maxPolarAngle = Math.PI * 0.46;
+    this.orbit.enablePan = false;
+    this.orbit.autoRotate = true;
+    this.orbit.autoRotateSpeed = 0.5;
     this.wireAutoOrbit();
 
-    this.updatables = buildScene(this.scene);
+    const sceneControls = buildScene(this.scene);
+    this.controls = sceneControls;
+    this.updatables = sceneControls.updatables;
 
     // HalfFloat buffers so emissive values > 1 survive into the bloom pass.
     this.composer = new EffectComposer(this.renderer, {
@@ -120,14 +125,14 @@ export class App {
    *  resumes after a few idle seconds. */
   private wireAutoOrbit(): void {
     let resumeTimer = 0;
-    this.controls.addEventListener("start", () => {
-      this.controls.autoRotate = false;
+    this.orbit.addEventListener("start", () => {
+      this.orbit.autoRotate = false;
       window.clearTimeout(resumeTimer);
     });
-    this.controls.addEventListener("end", () => {
+    this.orbit.addEventListener("end", () => {
       window.clearTimeout(resumeTimer);
       resumeTimer = window.setTimeout(() => {
-        this.controls.autoRotate = true;
+        this.orbit.autoRotate = true;
       }, AUTO_ORBIT_RESUME_MS);
     });
   }
@@ -141,7 +146,7 @@ export class App {
     this.lastTime = now;
     this.elapsed += dt;
 
-    this.controls.update();
+    this.orbit.update();
     for (const update of this.updatables) update(dt, this.elapsed);
     this.composer.render(dt);
     this.labelRenderer.render(this.scene, this.camera);

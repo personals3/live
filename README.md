@@ -34,8 +34,8 @@ Deployed at **live.personals3.tech**.
 |---|---|
 | 2 — scaffold: scene shell, lighting, bloom, orbit @ 60fps | ✅ |
 | 3 — static diorama: 8 labeled structures, materials | ✅ |
-| 4 — mock event stream: particles, furnace, tank, counters | ⬜ |
-| 5 — polish: idle ambience, error states, load sequence | ⬜ |
+| 4 — mock event stream: particles, furnace, tank, counters | ✅ |
+| 5 — polish: idle ambience, error states, load sequence (+ give the cleaner drone more body/presence) | ⬜ |
 | 6 — live SSE connector + server telemetry endpoint | ⬜ |
 
 The diorama: **Cloudflare Tunnel** (portal up high, beam aimed at the
@@ -78,14 +78,28 @@ milestone 4 lands.
 
 ```
 src/
-  main.ts       entry — mounts App
+  main.ts       entry — App + Director + event feed
   app.ts        engine shell: renderer, camera, orbit, bloom, labels, loop
-  scene.ts      environment + floor plan — composes the structures
-  diorama.ts    the 8 structures, one builder each (m4 hook points marked)
+  scene.ts      environment + floor plan + particle routes → SceneControls
+  diorama.ts    the 8 structures; reactive ones expose control handles
+  director.ts   protocol events → scene motion (pure dispatch)
+  events.ts     the typed event protocol (shared contract with the server)
+  mock.ts       fake-but-plausible event stream (default until m6)
+  particles.ts  one InstancedMesh pool: route gliders + bursts, hard cap
   materials.ts  palette + luminance-compensated neon materials
-  labels.ts     CSS2D name tags (DOM text — crisp, bloom-free)
+  labels.ts     CSS2D name tags + holographic counter chips
   stats.ts      tiny FPS meter (?stats=1)
 ```
+
+Event → effect map: **upload** = cyan particle Tunnel → API → Storage
+(tank blips on arrival) · **download** = particle Storage → Nginx → out
+into the fog · **transcode_start** = furnace ignites with heat shimmer,
+progress arc fills · **transcode_done** = magenta burst (red if failed) ·
+**error** = red flicker on the API bands · **request** = the Valkey ring
+spins up · **stats** = tank level, req/min + disk + active-jobs counters,
+API pulse rate, uptime in the HUD. Privacy is structural: the protocol
+(`events.ts`) only has fields for type, size bucket, opaque job ids, and
+timestamps — nothing user-identifying exists to render.
 
 A note on the materials: bloom thresholds on Rec. 709 luminance, which is
 ~72% green — at equal intensity magenta would never bloom while cyan and

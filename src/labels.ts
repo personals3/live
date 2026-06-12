@@ -19,3 +19,23 @@ export function makeLabel(text: string, accentHex: number): CSS2DObject {
   el.append(dot, text);
   return new CSS2DObject(el);
 }
+
+/**
+ * Holographic counter chip — a small value readout that floats with a
+ * structure (req/min on the API, disk % on the tank, active jobs on the
+ * furnace). Same CSS2D mechanism as labels: crisp, bloom-free.
+ */
+export function makeCounter(): {
+  object: CSS2DObject;
+  set: (text: string) => void;
+} {
+  const el = document.createElement("div");
+  el.className = "counter";
+  el.textContent = "—";
+  return {
+    object: new CSS2DObject(el),
+    set: (text: string) => {
+      el.textContent = text;
+    },
+  };
+}

@@ -10,12 +10,33 @@ import {
   buildTunnel,
   buildValkey,
   makeGroundPad,
+  type ApiCoreHandle,
+  type FurnaceHandle,
+  type StorageHandle,
   type Structure,
+  type ValkeyHandle,
 } from "./diorama";
 import { bodyMaterial, COLORS } from "./materials";
+import { ParticleSystem } from "./particles";
 
 /** Per-frame animation hook: (delta seconds, total elapsed seconds). */
 export type Updatable = (dt: number, t: number) => void;
+
+/** Everything the director needs to turn events into motion. */
+export interface SceneControls {
+  updatables: Updatable[];
+  api: ApiCoreHandle;
+  furnace: FurnaceHandle;
+  storage: StorageHandle;
+  valkey: ValkeyHandle;
+  particles: ParticleSystem;
+  /** Tunnel → API → Storage (uploads ride this). */
+  uploadRoute: THREE.CatmullRomCurve3;
+  /** Storage → Nginx → out of the room (downloads/streams). */
+  downloadRoute: THREE.CatmullRomCurve3;
+  /** Where transcode-done bursts erupt (above the furnace). */
+  furnaceTop: THREE.Vector3;
+}
 
 // Floor plan (top view; the camera starts looking in from +x/+z):
 //
@@ -27,7 +48,7 @@ export type Updatable = (dt: number, t: number) => void;
 const API_TOP = new THREE.Vector3(0, 3.4, 0);
 const TUNNEL_POS = new THREE.Vector3(-5, 6.5, -5);
 
-export function buildScene(scene: THREE.Scene): Updatable[] {
+export function buildScene(scene: THREE.Scene): SceneControls {
   const updatables: Updatable[] = [];
 
   // --- Lighting: dim and cool; the structures' emissives carry the look.
@@ -101,11 +122,15 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
   place(tunnel, TUNNEL_POS.x, TUNNEL_POS.y, TUNNEL_POS.z, 1.6, COLORS.cyan);
   tunnel.group.lookAt(API_TOP); // portal faces the core; beam runs along +Z
 
-  place(buildApiCore(), 0, 0, 0, 2.2, COLORS.green);
+  const api = buildApiCore();
+  place(api, 0, 0, 0, 2.2, COLORS.green);
   place(buildPostgres(), -7, 0, -1, 2.0, COLORS.ice);
-  place(buildValkey(), -4, 0, 3.5, 1.3, COLORS.amber);
-  place(buildFurnace(), 7, 0, -1.5, 1.8, COLORS.magenta);
-  place(buildStorage(), 5.5, 0, 4, 1.6, COLORS.fill);
+  const valkey = buildValkey();
+  place(valkey, -4, 0, 3.5, 1.3, COLORS.amber);
+  const furnace = buildFurnace();
+  place(furnace, 7, 0, -1.5, 1.8, COLORS.magenta);
+  const storage = buildStorage();
+  place(storage, 5.5, 0, 4, 1.6, COLORS.fill);
 
   const nginx = buildNginx();
   place(nginx, 3.5, 0, -6.5, 1.4, COLORS.cyan);
@@ -114,5 +139,36 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
 
   place(buildCleaner(), 0, 0, 6.5); // pad built in — it travels with the drone
 
-  return updatables;
+  // --- Particle routes (world space). Waypoints chosen to skim past the
+  // structures they conceptually pass through, with enough altitude that
+  // particles never clip the floor or bodies.
+  const uploadRoute = new THREE.CatmullRomCurve3([
+    TUNNEL_POS.clone(),
+    new THREE.Vector3(-2.5, 4.6, -2.5),
+    API_TOP.clone(),
+    new THREE.Vector3(3, 4.4, 2),
+    new THREE.Vector3(5.5, 3.7, 4), // storage tank mouth
+  ]);
+  const downloadRoute = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(5.5, 3.7, 4), // storage tank mouth
+    new THREE.Vector3(4.6, 2.8, -1.2),
+    new THREE.Vector3(3.5, 1.6, -6.3), // through the nginx horn
+    new THREE.Vector3(7, 1.8, -13), // out along the horn's aim
+    new THREE.Vector3(9.5, 2.0, -17.5), // fades into the fog
+  ]);
+
+  const particles = new ParticleSystem(scene);
+  updatables.push((dt) => particles.update(dt));
+
+  return {
+    updatables,
+    api,
+    furnace,
+    storage,
+    valkey,
+    particles,
+    uploadRoute,
+    downloadRoute,
+    furnaceTop: new THREE.Vector3(7, 2.6, -1.5),
+  };
 }
