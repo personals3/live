@@ -1,13 +1,11 @@
 import * as THREE from "three";
 
+import { COLORS, neonMaterial } from "./materials";
+
 /** Per-frame animation hook: (delta seconds, total elapsed seconds). */
 export type Updatable = (dt: number, t: number) => void;
 
-// Color language of the final diorama (see README):
-// cyan = data-in, magenta = transcode, green = healthy, amber = queued.
-const CYAN = 0x00e5ff;
-const MAGENTA = 0xff2ec4;
-const AMBER = 0xffb020;
+const { cyan: CYAN, magenta: MAGENTA, amber: AMBER } = COLORS;
 
 /**
  * Scene contents. MILESTONE 2 PLACEHOLDER: a lit floor plus a few emissive
@@ -39,14 +37,7 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
   // --- PLACEHOLDER centerpiece: emissive icosahedron to calibrate bloom.
   const core = new THREE.Mesh(
     new THREE.IcosahedronGeometry(1.6, 0),
-    new THREE.MeshStandardMaterial({
-      color: 0x06181c,
-      emissive: CYAN,
-      emissiveIntensity: 1.6,
-      roughness: 0.35,
-      metalness: 0.1,
-      flatShading: true,
-    }),
+    neonMaterial(CYAN, 1.6, { roughness: 0.35, flatShading: true }),
   );
   core.position.y = 2.2;
   scene.add(core);
@@ -62,12 +53,7 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
     const angle = (i / 3) * Math.PI * 2;
     const cube = new THREE.Mesh(
       new THREE.BoxGeometry(0.7, 0.7, 0.7),
-      new THREE.MeshStandardMaterial({
-        color: 0x0a0d14,
-        emissive: colorHex,
-        emissiveIntensity: 1.8,
-        roughness: 0.4,
-      }),
+      neonMaterial(colorHex, 1.8),
     );
     cube.position.set(Math.cos(angle) * 5, 1.1, Math.sin(angle) * 5);
     scene.add(cube);
