@@ -1,5 +1,6 @@
 import { App } from "./app";
 import { Director } from "./director";
+import { LiveFeed } from "./live";
 import { MockFeed } from "./mock";
 import { INTRO_TOTAL_S } from "./scene";
 
@@ -8,13 +9,54 @@ if (!container) throw new Error("#app container missing from index.html");
 
 const app = new App(container);
 const director = new Director(app.controls);
+const handle = director.handle.bind(director);
 
-// Milestone 6 adds live.ts: connect SSE unless ?mock=1, and fall back to
-// the mock feed whenever the live socket is unreachable. Until then the
-// scene always runs on mock data (the HUD badge says so).
-// The feed waits for the assembly intro — no particles flying into
-// structures that haven't built themselves yet.
-const feed = new MockFeed();
-window.setTimeout(() => feed.start((e) => director.handle(e)), INTRO_TOTAL_S * 1000);
+const badge = document.getElementById("hud-source");
+function setBadge(text: string, state: "mock" | "live" | "reconnecting"): void {
+  if (!badge) return;
+  badge.textContent = text;
+  badge.className = state;
+}
+
+// Source policy: live telemetry by default; the mock keeps the scene
+// beautiful whenever the socket is unreachable; ?mock=1 forces mock.
+// Feeds start after the assembly intro so nothing flies at a half-built
+// room.
+const forceMock = new URLSearchParams(location.search).has("mock");
+const mock = new MockFeed();
+
+function startFeeds(): void {
+  if (forceMock) {
+    setBadge("MOCK DATA", "mock");
+    mock.start(handle);
+    return;
+  }
+
+  let mockRunning = false;
+  const live = new LiveFeed({
+    onUp: () => {
+      if (mockRunning) {
+        mock.stop();
+        mockRunning = false;
+        director.reset(); // drop mock job state — live owns the furnace now
+      }
+      app.setDimmed(false);
+      setBadge("LIVE", "live");
+    },
+    onDown: () => {
+      app.setDimmed(true);
+      setBadge("RECONNECTING · MOCK DATA", "reconnecting");
+      if (!mockRunning) {
+        director.reset();
+        mock.start(handle);
+        mockRunning = true;
+      }
+    },
+  });
+  setBadge("CONNECTING…", "reconnecting");
+  live.start(handle);
+}
+
+window.setTimeout(startFeeds, INTRO_TOTAL_S * 1000);
 
 app.start();

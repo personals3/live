@@ -81,6 +81,21 @@
         border-radius: 3px;
         color: #ffb020;
         letter-spacing: 0.1em;
+        transition: color 0.4s, border-color 0.4s;
+      }
+      #hud-source.live {
+        border-color: rgba(43, 255, 136, 0.5);
+        color: #2bff88;
+      }
+      #hud-source.reconnecting {
+        border-color: rgba(255, 176, 32, 0.5);
+        color: #ffb020;
+        animation: hud-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes hud-pulse {
+        50% {
+          opacity: 0.35;
+        }
       }
     </style>
   </head>

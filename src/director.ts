@@ -44,6 +44,13 @@ export class Director {
     this.uptimeEl = document.getElementById("hud-uptime");
   }
 
+  /** Event-source switch (mock ↔ live): drop cross-source job state so a
+   *  mock transcode can't leave the furnace burning forever. */
+  reset(): void {
+    this.c.furnace.clear();
+    this.lastDiskPct = null;
+  }
+
   handle(e: LiveEvent): void {
     const c = this.c;
     switch (e.type) {

@@ -35,6 +35,7 @@ export class App {
   private rafId = 0;
   private lastTime = 0;
   private elapsed = 0;
+  private targetExposure = 1;
 
   constructor(container: HTMLElement) {
     // Bloom needs antialias off (the composer renders via buffers; MSAA
@@ -121,6 +122,11 @@ export class App {
     this.rafId = requestAnimationFrame(this.frame);
   }
 
+  /** Disconnected look: the room's lights ease down, nothing stops. */
+  setDimmed(dimmed: boolean): void {
+    this.targetExposure = dimmed ? 0.45 : 1;
+  }
+
   /** Slow ambient orbit by default; user input takes over, and the orbit
    *  resumes after a few idle seconds. */
   private wireAutoOrbit(): void {
@@ -148,6 +154,8 @@ export class App {
 
     this.orbit.update();
     for (const update of this.updatables) update(dt, this.elapsed);
+    this.renderer.toneMappingExposure +=
+      (this.targetExposure - this.renderer.toneMappingExposure) * Math.min(dt * 3, 1);
     this.composer.render(dt);
     this.labelRenderer.render(this.scene, this.camera);
     this.fps.tick(now);

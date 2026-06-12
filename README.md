@@ -36,7 +36,15 @@ Deployed at **live.personals3.tech**.
 | 3 — static diorama: 8 labeled structures, materials | ✅ |
 | 4 — mock event stream: particles, furnace, tank, counters | ✅ |
 | 5 — polish: idle ambience, error states, load sequence, cleaner body upgrade | ✅ |
-| 6 — live SSE connector + server telemetry endpoint | ⬜ |
+| 6 — live SSE connector + server telemetry endpoint | ✅ |
+
+Connection policy: the scene connects to `GET /api/live` (SSE) on load
+and shows a green **LIVE** badge. If the socket drops or never connects,
+the room dims, the badge pulses **RECONNECTING · MOCK DATA**, and the
+mock feed keeps the scene alive while `live.ts` retries with exponential
+backoff (1s → 30s cap, jittered). The moment the stream is back, mock
+stops, the lights come back up, and cross-source furnace state is
+cleared. `?mock=1` skips live entirely.
 
 Polish notes: every structure carries a subtle phase-offset idle pulse
 (the scene is never a still image); ground pads breathe; dust motes
@@ -80,8 +88,8 @@ Useful URL flags: `?stats=1` shows the FPS meter (always on in dev builds).
 `?nobloom=1` disables the bloom pass — the scene's lighting rule is
 "identity through rim light and ground pads, drama through bloom", so
 every structure must stay identifiable with bloom off; this flag is how
-you check that. `?mock=1` will force the mock event stream once
-milestone 4 lands.
+you check that. `?mock=1` forces the mock event stream (no live
+connection attempts).
 
 ## Architecture (code)
 
@@ -93,7 +101,8 @@ src/
   diorama.ts    the 8 structures; reactive ones expose control handles
   director.ts   protocol events → scene motion (pure dispatch)
   events.ts     the typed event protocol (shared contract with the server)
-  mock.ts       fake-but-plausible event stream (default until m6)
+  live.ts       SSE connector — backoff, up/down callbacks, frame validation
+  mock.ts       fake-but-plausible event stream (fallback + ?mock=1)
   particles.ts  one InstancedMesh pool: route gliders + bursts, hard cap
   materials.ts  palette + luminance-compensated neon materials
   labels.ts     CSS2D name tags + holographic counter chips

@@ -33,6 +33,8 @@ export interface FurnaceHandle extends Structure {
   start(job: string): void;
   progress(job: string, pct: number): void;
   finish(job: string, ok: boolean): void;
+  /** Forget all jobs (event-source switch — mock jobs never finish on live). */
+  clear(): void;
   setCounterText(text: string): void;
 }
 
@@ -439,6 +441,12 @@ export function buildFurnace(): FurnaceHandle {
         failLeft = 1.4;
         currentUnits = Math.max(currentUnits, BURN_UNITS * 1.3);
       }
+    },
+    clear: () => {
+      jobs.clear();
+      shown = null;
+      targetUnits = IDLE_UNITS;
+      setArcPct(0);
     },
     setCounterText: (text) => counter.set(text),
     update: (dt, t) => {
