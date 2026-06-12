@@ -21,7 +21,8 @@ const AUTO_ORBIT_RESUME_MS = 8_000;
  */
 export class App {
   private readonly renderer: THREE.WebGLRenderer;
-  private readonly camera: THREE.PerspectiveCamera;
+  /** Public: the story rig drives this directly during the scroll story. */
+  readonly camera: THREE.PerspectiveCamera;
   private readonly orbit: OrbitControls;
   private readonly composer: EffectComposer;
   private readonly labelRenderer: CSS2DRenderer;
@@ -36,6 +37,8 @@ export class App {
   private lastTime = 0;
   private elapsed = 0;
   private targetExposure = 1;
+  private rig: { update(dt: number): void } | null = null;
+  private explore = true;
 
   constructor(container: HTMLElement) {
     // Bloom needs antialias off (the composer renders via buffers; MSAA
@@ -127,6 +130,26 @@ export class App {
     this.targetExposure = dimmed ? 0.45 : 1;
   }
 
+  /** Hand the camera to the story rig (it calls setExplore for handover). */
+  setRig(rig: { update(dt: number): void }): void {
+    this.rig = rig;
+    this.setExplore(false);
+  }
+
+  /**
+   * Story ↔ explore handover. Locked: the rig owns the camera and the
+   * canvas ignores the pointer so wheel/touch scroll the page. Explore:
+   * free orbit, auto-rotate, canvas takes pointer input again.
+   */
+  setExplore(on: boolean): void {
+    if (on === this.explore) return;
+    this.explore = on;
+    this.orbit.enabled = on;
+    this.orbit.autoRotate = on;
+    this.renderer.domElement.style.pointerEvents = on ? "auto" : "none";
+    if (on) this.orbit.target.set(0, 1.8, 0); // matches the release shot
+  }
+
   /** Slow ambient orbit by default; user input takes over, and the orbit
    *  resumes after a few idle seconds. */
   private wireAutoOrbit(): void {
@@ -152,7 +175,8 @@ export class App {
     this.lastTime = now;
     this.elapsed += dt;
 
-    this.orbit.update();
+    this.rig?.update(dt);
+    if (this.orbit.enabled) this.orbit.update();
     for (const update of this.updatables) update(dt, this.elapsed);
     this.renderer.toneMappingExposure +=
       (this.targetExposure - this.renderer.toneMappingExposure) * Math.min(dt * 3, 1);

@@ -6,27 +6,123 @@
     <meta name="theme-color" content="#05070d" />
     <title>PersonalS3 — Live</title>
     <style>
+      :root {
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+        --green: #2bff88;
+        --panel-bg: rgba(6, 10, 16, 0.72);
+        --panel-border: rgba(43, 255, 136, 0.35);
+      }
+      html {
+        scroll-snap-type: y proximity;
+      }
       html,
       body {
         margin: 0;
-        height: 100%;
         background: #05070d;
-        overflow: hidden;
         overscroll-behavior: none;
       }
+      /* The WebGL room lives behind everything; the story scrolls over it. */
       #app {
         position: fixed;
         inset: 0;
       }
       #app canvas {
         display: block;
-        touch-action: none; /* orbit controls own all gestures */
+        touch-action: none; /* orbit gestures in explore mode */
+        /* pointer-events toggled by App.setExplore — none during the story */
       }
+
+      main {
+        position: relative;
+        z-index: 5;
+      }
+      main section {
+        height: 100vh;
+        position: relative;
+        scroll-snap-align: start;
+        pointer-events: none; /* let the canvas see the pointer in explore */
+      }
+
+      /* Terminal-styled panels (placeholder styling — R2 does it properly) */
+      .panel {
+        pointer-events: auto;
+        position: absolute;
+        left: 5vw;
+        top: 50%;
+        transform: translateY(-50%) translateX(-14px);
+        max-width: 380px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 4px;
+        padding: 18px 22px;
+        font: 13px/1.65 var(--mono);
+        color: #c6d4e2;
+        opacity: 0;
+        transition: opacity 0.28s ease, transform 0.28s ease;
+        backdrop-filter: blur(6px);
+      }
+      .panel.visible {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+      }
+      .panel h2 {
+        margin: 0 0 8px;
+        font: 700 12px/1 var(--mono);
+        color: var(--green);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .panel .cmd {
+        color: var(--green);
+      }
+      .panel p {
+        margin: 0;
+      }
+
+      /* Hero + release: centered, border-free */
+      .panel.center {
+        left: 50%;
+        right: auto;
+        max-width: 560px;
+        text-align: center;
+        background: transparent;
+        border: none;
+        backdrop-filter: none;
+        transform: translate(-50%, -50%) translateY(10px);
+      }
+      .panel.center.visible {
+        transform: translate(-50%, -50%);
+      }
+      .hero-title {
+        font: 700 clamp(26px, 4.5vw, 40px) / 1.2 var(--mono);
+        color: #e8f2fa;
+        margin: 10px 0 6px;
+        text-shadow: 0 2px 24px rgba(0, 0, 0, 0.9);
+      }
+      .hero-sub {
+        color: rgba(180, 205, 225, 0.85);
+      }
+      .scroll-hint {
+        position: absolute;
+        bottom: 26px;
+        left: 50%;
+        transform: translateX(-50%);
+        font: 12px var(--mono);
+        color: rgba(140, 170, 195, 0.7);
+        animation: hint-bob 2.2s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes hint-bob {
+        50% {
+          transform: translateX(-50%) translateY(7px);
+        }
+      }
+
       #stats {
         position: fixed;
         top: 10px;
         left: 12px;
-        font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 12px/1.4 var(--mono);
         color: #00e5ff;
         text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
         user-select: none;
@@ -35,7 +131,7 @@
         z-index: 10;
       }
       .label {
-        font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 600 10px/1 var(--mono);
         letter-spacing: 0.14em;
         text-transform: uppercase;
         white-space: nowrap;
@@ -53,7 +149,7 @@
         box-shadow: 0 0 6px currentColor;
       }
       .counter {
-        font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 700 11px/1 var(--mono);
         letter-spacing: 0.06em;
         white-space: nowrap;
         color: #7fe9ff;
@@ -69,7 +165,7 @@
         display: flex;
         gap: 10px;
         align-items: center;
-        font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 11px/1.4 var(--mono);
         color: rgba(160, 190, 210, 0.7);
         user-select: none;
         pointer-events: none;
@@ -85,7 +181,7 @@
       }
       #hud-source.live {
         border-color: rgba(43, 255, 136, 0.5);
-        color: #2bff88;
+        color: var(--green);
       }
       #hud-source.reconnecting {
         border-color: rgba(255, 176, 32, 0.5);
@@ -106,6 +202,81 @@
       <span id="hud-source">MOCK DATA</span>
       <span id="hud-uptime">up —</span>
     </div>
+
+    <!-- Placeholder copy throughout — R2 replaces it with reviewed content. -->
+    <main>
+      <section id="hero">
+        <div class="panel center">
+          <div class="cmd">$ tail -f homelab</div>
+          <div class="hero-title">This is my real infrastructure, live.</div>
+          <p class="hero-sub">Follow a file through the machine room.</p>
+        </div>
+        <div class="scroll-hint">▼ scroll</div>
+      </section>
+
+      <section id="door">
+        <div class="panel">
+          <h2>The door</h2>
+          <p><span class="cmd">$ cloudflared tunnel run</span><br />
+            Everything enters through a Cloudflare Tunnel — the host opens
+            zero inbound ports. <em>(placeholder copy)</em></p>
+        </div>
+      </section>
+
+      <section id="brain">
+        <div class="panel">
+          <h2>The brain</h2>
+          <p>The Go API (chi) authenticates every request — SigV4, API
+            keys, or JWT — pinging Valkey for rate limits and the
+            PostgreSQL vault for metadata. <em>(placeholder copy)</em></p>
+        </div>
+      </section>
+
+      <section id="shelf">
+        <div class="panel">
+          <h2>The shelf</h2>
+          <p>Objects land content-addressed on disk: temp-write, fsync,
+            atomic rename. Quota charged before bytes. <em>(placeholder
+            copy)</em></p>
+        </div>
+      </section>
+
+      <section id="furnace">
+        <div class="panel">
+          <h2>The furnace</h2>
+          <p>An FFmpeg worker claims jobs with
+            <span class="cmd">FOR UPDATE SKIP LOCKED</span> and burns video
+            into an HLS ladder. <em>(placeholder copy)</em></p>
+        </div>
+      </section>
+
+      <section id="mouth">
+        <div class="panel">
+          <h2>The mouth</h2>
+          <p>Segments stream straight off disk through nginx —
+            zero-copy sendfile; the API never touches a playing video.
+            <em>(placeholder copy)</em></p>
+        </div>
+      </section>
+
+      <section id="janitor">
+        <div class="panel">
+          <h2>The janitor</h2>
+          <p>A cleaner service sweeps with an adaptive Merkle trie —
+            orphans reaped, disk and database always agreeing.
+            <em>(placeholder copy)</em></p>
+        </div>
+      </section>
+
+      <section id="release">
+        <div class="panel center">
+          <div class="cmd">$ explore</div>
+          <p class="hero-sub">Drag to orbit · scroll to zoom · the room is
+            yours now. <em>(links + footer in R2)</em></p>
+        </div>
+      </section>
+    </main>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

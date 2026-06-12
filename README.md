@@ -38,6 +38,31 @@ Deployed at **live.personals3.tech**.
 | 5 — polish: idle ambience, error states, load sequence, cleaner body upgrade | ✅ |
 | 6 — live SSE connector + server telemetry endpoint | ✅ |
 
+## Redesign — the scroll-told story
+
+The diorama is being rebuilt into a scroll-driven narrative page (see
+`../ps3-live-redesign-brief.md`): fixed canvas behind DOM content, an
+authored camera path instead of free orbit, terminal-styled panels that
+explain each structure as the camera visits it, ending in a release into
+the classic explore mode. The engine, structures, director, particles,
+and feeds all survive unchanged — this is presentation-layer work.
+
+| Redesign milestone | State |
+|---|---|
+| R1 — scroll rig: camera path, placeholder panels, snap/reverse/clamp | ✅ |
+| R2 — real panel content, portfolio styling, progress rail, hero/release | ⬜ |
+| R3 — scripted demo events per section over subtle ambient stream | ⬜ |
+| R4 — cinematography: shadows/AO/DOF/grain/reflective platform, ?quality | ⬜ |
+| R5 — mobile polish + attract loop capture path | ⬜ |
+
+Scroll mechanics (R1): 8 full-viewport sections snap gently
+(CSS `proximity`); a damped rig follows scroll so fast scrolling or
+scrollbar yanks can never break the camera; each shot arrives by
+mid-segment and holds while its panel is read; PgUp/PgDn step sections;
+the final section unlocks free orbit and scrolling back re-locks with a
+smooth blend (no teleports). During the story the canvas ignores the
+pointer entirely, so wheel and touch always scroll the page.
+
 Connection policy: the scene connects to the live stream on load and
 shows a green **LIVE** badge. The stream URL defaults to the relative
 `/api/live` (same-origin deploys); for static hosts that can't proxy —

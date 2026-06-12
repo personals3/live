@@ -3,6 +3,7 @@ import { Director } from "./director";
 import { LiveFeed } from "./live";
 import { MockFeed } from "./mock";
 import { INTRO_TOTAL_S } from "./scene";
+import { StoryRig, wireStoryDOM } from "./story";
 
 const container = document.getElementById("app");
 if (!container) throw new Error("#app container missing from index.html");
@@ -10,6 +11,10 @@ if (!container) throw new Error("#app container missing from index.html");
 const app = new App(container);
 const director = new Director(app.controls);
 const handle = director.handle.bind(director);
+
+// Scroll story: the rig owns the camera until the release section.
+app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on)));
+wireStoryDOM();
 
 const badge = document.getElementById("hud-source");
 function setBadge(text: string, state: "mock" | "live" | "reconnecting"): void {
