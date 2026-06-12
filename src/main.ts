@@ -15,7 +15,7 @@ const handle = director.handle.bind(director);
 
 // Scroll story: the rig owns the camera until the release section; the
 // script director runs each section's demo loop as it comes into view.
-app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on)));
+app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on), app.focus));
 const script = new ScriptDirector(app.controls, director);
 wireStoryDOM((i) => script.onSection(i));
 

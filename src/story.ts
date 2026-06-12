@@ -50,6 +50,8 @@ export class StoryRig {
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
     private readonly setExplore: (on: boolean) => void,
+    /** DOF focus point (App.focus) — aimed at the current shot's subject. */
+    private readonly focus?: THREE.Vector3,
   ) {}
 
   /** Continuous section coordinate 0..7 from the page scroll position. */
@@ -94,6 +96,7 @@ export class StoryRig {
 
     this.camera.position.copy(this.pos);
     this.camera.lookAt(this.look);
+    this.focus?.copy(this.look);
   }
 }
 

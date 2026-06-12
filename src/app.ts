@@ -3,9 +3,13 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 import {
   BloomEffect,
+  ChromaticAberrationEffect,
+  DepthOfFieldEffect,
   EffectComposer,
   EffectPass,
+  NoiseEffect,
   RenderPass,
+  VignetteEffect,
 } from "postprocessing";
 
 import { buildScene, type SceneControls, type Updatable } from "./scene";
@@ -13,6 +17,18 @@ import { FpsMeter } from "./stats";
 
 /** Re-enable the slow ambient orbit this long after the user lets go. */
 const AUTO_ORBIT_RESUME_MS = 8_000;
+
+type Quality = "high" | "low";
+
+/** ?quality=low|high overrides; otherwise coarse pointers / small screens
+ *  start low and desktops start high (auto-degrade can still drop them). */
+function resolveQuality(): Quality {
+  const q = new URLSearchParams(location.search).get("quality");
+  if (q === "low" || q === "high") return q;
+  const coarse =
+    window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
+  return coarse ? "low" : "high";
+}
 
 /**
  * Engine shell: renderer, camera, controls, bloom composer, frame loop.
@@ -40,7 +56,17 @@ export class App {
   private rig: { update(dt: number): void } | null = null;
   private explore = true;
 
+  /** DOF focus point — the rig aims it at the current shot's subject. */
+  readonly focus = new THREE.Vector3(0, 1.8, 0);
+  private quality: Quality;
+  private cinePass: EffectPass | null = null;
+  // Auto-degrade bookkeeping: rolling frame-time windows.
+  private frameAcc = 0;
+  private frameCount = 0;
+  private slowWindows = 0;
+
   constructor(container: HTMLElement) {
+    this.quality = resolveQuality();
     // Bloom needs antialias off (the composer renders via buffers; MSAA
     // would be paid for and then thrown away).
     this.renderer = new THREE.WebGLRenderer({
@@ -50,9 +76,13 @@ export class App {
     });
     // DPR capped at 2: retina is visibly sharp at 2, and integrated GPUs
     // (the Iris Xe target) pay quadratically for pixels beyond that.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, this.quality === "high" ? 2 : 1.5),
+    );
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.shadowMap.enabled = this.quality === "high";
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
     // DOM overlay for structure labels — crisp text, outside the bloom.
@@ -113,6 +143,31 @@ export class App {
         ),
       );
     }
+    // The cinematography stack (quality=high only): shallow depth of field
+    // focused on the current shot's subject, vignette, edge chromatic
+    // aberration, and fine grain. One combined pass; auto-degrade just
+    // flips it off.
+    if (this.quality === "high") {
+      const dof = new DepthOfFieldEffect(this.camera, {
+        focusDistance: 0.02,
+        focalLength: 0.06,
+        bokehScale: 1.8,
+        height: 480,
+      });
+      dof.target = this.focus; // shared vector — the rig mutates it
+      this.cinePass = new EffectPass(
+        this.camera,
+        dof,
+        new ChromaticAberrationEffect({
+          offset: new THREE.Vector2(0.0007, 0.0007),
+          radialModulation: true,
+          modulationOffset: 0.35,
+        }),
+        new VignetteEffect({ offset: 0.32, darkness: 0.62 }),
+        new NoiseEffect({ premultiply: true }),
+      );
+      this.composer.addPass(this.cinePass);
+    }
 
     this.fps = new FpsMeter(document.getElementById("stats") as HTMLElement);
 
@@ -171,9 +226,11 @@ export class App {
 
     // Clamp dt so a debugger pause or dropped tab doesn't teleport
     // animations on the next frame.
-    const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+    const rawDt = (now - this.lastTime) / 1000;
+    const dt = Math.min(rawDt, 0.1);
     this.lastTime = now;
     this.elapsed += dt;
+    this.watchFrameBudget(rawDt);
 
     this.rig?.update(dt);
     if (this.orbit.enabled) this.orbit.update();
@@ -184,6 +241,33 @@ export class App {
     this.labelRenderer.render(this.scene, this.camera);
     this.fps.tick(now);
   };
+
+  /** Sustained frame time over 20ms drops quality=high to low at runtime:
+   *  the cine pass turns off, shadows turn off, DPR drops. One-way. */
+  private watchFrameBudget(rawDt: number): void {
+    if (this.quality !== "high" || this.elapsed < 6) return; // skip warmup
+    this.frameAcc += rawDt;
+    if (++this.frameCount < 60) return;
+    const avg = this.frameAcc / this.frameCount;
+    this.frameAcc = 0;
+    this.frameCount = 0;
+    this.slowWindows = avg > 0.02 ? this.slowWindows + 1 : 0;
+    if (this.slowWindows < 3) return;
+
+    this.quality = "low";
+    if (this.cinePass) this.cinePass.enabled = false;
+    this.renderer.shadowMap.enabled = false;
+    this.scene.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        (o.material as THREE.Material).needsUpdate = true;
+      }
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+    console.info(
+      "[ps3-live] sustained frame time > 20ms — degraded to quality=low",
+    );
+  }
 
   /** Stop the loop entirely while the tab is hidden — zero GPU/CPU spend. */
   private readonly onVisibility = (): void => {

@@ -63,6 +63,41 @@ export interface CleanerHandle extends Structure {
   getPosition(out: THREE.Vector3): THREE.Vector3;
 }
 
+// Shared soft-shadow texture: radial black→transparent gradient. One
+// canvas for every disc in the scene.
+let contactTexture: THREE.CanvasTexture | null = null;
+function getContactTexture(): THREE.CanvasTexture {
+  if (contactTexture) return contactTexture;
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, "rgba(0,0,0,0.55)");
+  g.addColorStop(0.6, "rgba(0,0,0,0.28)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  contactTexture = new THREE.CanvasTexture(canvas);
+  return contactTexture;
+}
+
+/** Soft contact-shadow disc — grounds a structure even where the real
+ *  shadow map can't reach (and on quality=low, where it's all we have). */
+export function makeContactShadow(radius: number): THREE.Mesh {
+  const disc = new THREE.Mesh(
+    new THREE.PlaneGeometry(radius * 2.4, radius * 2.4),
+    new THREE.MeshBasicMaterial({
+      map: getContactTexture(),
+      transparent: true,
+      depthWrite: false,
+    }),
+  );
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.015; // below the pads (0.02)
+  return disc;
+}
+
 /**
  * Faintly glowing disc + edge ring that anchors a structure to the floor —
  * its position stays visible in the structure's color even when the body
@@ -485,17 +520,20 @@ export function buildStorage(): StorageHandle {
   base.position.y = 0.15;
   group.add(base);
 
-  // Glass shell: fresnel-rimmed so its edges catch a faint line of light.
-  // The raw rim intensity looks high but gets multiplied by the 0.12
-  // alpha, landing at ~0.14 effective — same "faint" as the bodies.
+  // Glass shell: fresnel-rimmed so its edges catch a faint line of light;
+  // clearcoat gives it a wet specular streak under the key light. The raw
+  // rim intensity looks high but gets multiplied by the 0.12 alpha,
+  // landing at ~0.14 effective — same "faint" as the bodies.
   const shell = new THREE.Mesh(
     new THREE.CylinderGeometry(1, 1, TANK_HEIGHT, 24, 1, true),
     applyRim(
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshPhysicalMaterial({
         color: 0x9fd4ff,
         transparent: true,
         opacity: 0.12,
         roughness: 0.15,
+        clearcoat: 1,
+        clearcoatRoughness: 0.25,
         side: THREE.DoubleSide,
         depthWrite: false,
       }),
@@ -696,6 +734,7 @@ export function buildCleaner(): CleanerHandle {
 
   // The pad travels with the drone — a moving puddle of underglow.
   group.add(makeGroundPad(1.05, COLORS.green));
+  group.add(makeContactShadow(0.85));
 
   const label = makeLabel("CLEANER", COLORS.green);
   label.object.position.set(0, 1.9, 0);

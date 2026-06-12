@@ -10,6 +10,7 @@ import {
   buildStorage,
   buildTunnel,
   buildValkey,
+  makeContactShadow,
   makeGroundPad,
   type ApiCoreHandle,
   type CleanerHandle,
@@ -74,28 +75,61 @@ export function buildScene(scene: THREE.Scene): SceneControls {
   const updatables: Updatable[] = [];
 
   // --- Lighting: dim and cool; the structures' emissives carry the look.
-  // Two directions (key + opposing fill) so bodies show form — shaded
-  // faces, not silhouette-black. The floor's near-black albedo keeps the
-  // night mood despite the extra light.
+  // The key light casts soft shadows (App enables the shadow map only on
+  // quality=high — everything here is free when it's off); the fill keeps
+  // shadowed faces from going silhouette-black.
   scene.add(new THREE.HemisphereLight(0x223344, 0x05070d, 0.75));
-  const key = new THREE.DirectionalLight(0x8899bb, 0.4);
-  key.position.set(5, 10, 3);
+  const key = new THREE.DirectionalLight(0x8899bb, 0.55);
+  key.position.set(12, 18, 8);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.left = -18;
+  key.shadow.camera.right = 18;
+  key.shadow.camera.top = 18;
+  key.shadow.camera.bottom = -18;
+  key.shadow.camera.near = 2;
+  key.shadow.camera.far = 50;
+  key.shadow.bias = -0.0005;
+  key.shadow.radius = 4;
   scene.add(key);
   const fillLight = new THREE.DirectionalLight(0x4a5a78, 0.3);
   fillLight.position.set(-6, 4, -8);
   scene.add(fillLight);
 
-  // --- Floor: dark slab + faint grid, "server room at night".
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(80, 80),
-    new THREE.MeshStandardMaterial({ color: 0x0a0d14, roughness: 1 }),
+  // --- The floor is a finite platform — the room is a PLACE with edges,
+  // fog closing in beyond them. Slight metalness so the key light leaves
+  // a sheen (the cheap stand-in for a planar reflection: rendering the
+  // scene twice would blow the Iris Xe budget).
+  const platform = new THREE.Mesh(
+    new THREE.CylinderGeometry(24, 24.6, 0.5, 72),
+    new THREE.MeshStandardMaterial({
+      color: 0x0a0d14,
+      roughness: 0.38,
+      metalness: 0.55,
+    }),
   );
-  floor.rotation.x = -Math.PI / 2;
-  scene.add(floor);
+  platform.position.y = -0.25; // top face at y = 0
+  platform.receiveShadow = true;
+  scene.add(platform);
 
-  const grid = new THREE.GridHelper(80, 80, 0x10333d, 0x0a1620);
-  grid.position.y = 0.01; // avoid z-fighting with the slab
+  const grid = new THREE.GridHelper(32, 32, 0x10333d, 0x0a1620);
+  grid.position.y = 0.01; // avoid z-fighting with the platform
   scene.add(grid);
+
+  // Platform edge — a barely-there rim so the boundary reads on purpose.
+  const edge = new THREE.Mesh(
+    new THREE.TorusGeometry(24, 0.05, 8, 96),
+    new THREE.MeshBasicMaterial({
+      color: COLORS.green,
+      transparent: true,
+      opacity: 0.22,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }),
+  );
+  edge.rotation.x = Math.PI / 2;
+  edge.position.y = 0.02;
+  scene.add(edge);
 
   // --- Background dressing: rack silhouettes for depth; the fog swallows
   // them at the edges. Cool-grey rim at half the structures' intensity —
@@ -164,6 +198,10 @@ export function buildScene(scene: THREE.Scene): SceneControls {
       const pad = makeGroundPad(padRadius, padHex);
       pad.position.set(x, 0, z);
       scene.add(pad);
+      const shadow = makeContactShadow(padRadius * 0.8);
+      shadow.position.x = x;
+      shadow.position.z = z;
+      scene.add(shadow);
       const mats: PadReg["mats"] = [];
       pad.traverse((o) => {
         if (o instanceof THREE.Mesh) {
@@ -312,6 +350,17 @@ export function buildScene(scene: THREE.Scene): SceneControls {
 
   const particles = new ParticleSystem(scene);
   updatables.push((dt) => particles.update(dt));
+
+  // Opaque structure meshes cast shadows (free while the shadow map is
+  // disabled on quality=low). Transparent/additive things — pads, beams,
+  // glass, particles — must not.
+  scene.traverse((o) => {
+    if (o instanceof THREE.InstancedMesh) return;
+    if (o instanceof THREE.Mesh) {
+      const m = o.material as THREE.Material;
+      if (!m.transparent && o !== platform) o.castShadow = true;
+    }
+  });
 
   return {
     updatables,
