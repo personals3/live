@@ -1,0 +1,5 @@
+# Anchored on purpose — see server/scripts/check-gitignore.sh
+/node_modules/
+/dist/
+*.local
+.DS_Store

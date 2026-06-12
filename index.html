@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070d" />
+    <title>PersonalS3 — Live</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05070d;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #app canvas {
+        display: block;
+        touch-action: none; /* orbit controls own all gestures */
+      }
+      #stats {
+        position: fixed;
+        top: 10px;
+        left: 12px;
+        font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #00e5ff;
+        text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+        user-select: none;
+        pointer-events: none;
+        display: none;
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="stats"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

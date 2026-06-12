@@ -1,0 +1,21 @@
+{
+  "name": "ps3-live",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Live 3D visualization of the PersonalS3 homelab — live.personals3.tech",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "postprocessing": "^6.36.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.180.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}
