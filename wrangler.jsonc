@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "personals3-live",
+  "compatibility_date": "2026-06-12",
+  // Static-only deploy: serve the contents of ./dist/ from the edge.
+  // No `main` field on purpose — that tells wrangler this is a pure
+  // static site, not a Worker, and stops its auto-setup from trying to
+  // inject the Cloudflare Vite plugin into vite.config.ts (which is
+  // exactly how the first Workers build failed).
+  "assets": {
+    "directory": "./dist",
+    // One-page site: any path serves the page.
+    "not_found_handling": "single-page-application"
+  }
+}
