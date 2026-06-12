@@ -35,8 +35,17 @@ Deployed at **live.personals3.tech**.
 | 2 — scaffold: scene shell, lighting, bloom, orbit @ 60fps | ✅ |
 | 3 — static diorama: 8 labeled structures, materials | ✅ |
 | 4 — mock event stream: particles, furnace, tank, counters | ✅ |
-| 5 — polish: idle ambience, error states, load sequence (+ give the cleaner drone more body/presence) | ⬜ |
+| 5 — polish: idle ambience, error states, load sequence, cleaner body upgrade | ✅ |
 | 6 — live SSE connector + server telemetry endpoint | ⬜ |
+
+Polish notes: every structure carries a subtle phase-offset idle pulse
+(the scene is never a still image); ground pads breathe; dust motes
+drift; structures assemble in a staggered pop-in on first load (the
+event feed politely waits for it); 5xx errors fire a red shockwave
+across the floor while 4xx just flicker the API bands; failed
+transcodes flash the furnace mouth red and flip its status dot; the
+cleaner is now a proper sweeper drone — dome, bumper ring, headlight
+eyes, spinning brushes, winking beacon mast — that leans into its turns.
 
 The diorama: **Cloudflare Tunnel** (portal up high, beam aimed at the
 core) → **Go API** (hex tower, breathing green bands) flanked by

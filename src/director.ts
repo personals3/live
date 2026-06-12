@@ -61,6 +61,9 @@ export class Director {
 
       case "error":
         c.api.flashError();
+        // 5xx is OUR fault — punctuate it with the floor shockwave.
+        // 4xx (client mistakes) just flicker the bands.
+        if (e.status >= 500) c.errorRipple();
         break;
 
       case "transcode_start":
@@ -72,7 +75,7 @@ export class Director {
         break;
 
       case "transcode_done":
-        c.furnace.finish(e.job);
+        c.furnace.finish(e.job, e.ok);
         c.particles.spawnBurst(c.furnaceTop, e.ok ? BURST_COLOR : BURST_FAIL_COLOR, 26);
         break;
 

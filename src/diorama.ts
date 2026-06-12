@@ -32,7 +32,7 @@ export interface ApiCoreHandle extends Structure {
 export interface FurnaceHandle extends Structure {
   start(job: string): void;
   progress(job: string, pct: number): void;
-  finish(job: string): void;
+  finish(job: string, ok: boolean): void;
   setCounterText(text: string): void;
 }
 
@@ -125,14 +125,20 @@ export function buildTunnel(beamLength: number): Structure {
   group.add(beam);
 
   const label = makeLabel("CLOUDFLARE TUNNEL", COLORS.cyan);
-  label.position.set(0, 1.9, 0);
-  group.add(label);
+  label.object.position.set(0, 1.9, 0);
+  group.add(label.object);
+
+  const ringBase = ring.material.emissiveIntensity;
+  const swirlBase = swirl.material.opacity;
 
   return {
     group,
-    update: (dt) => {
+    update: (dt, t) => {
       ring.rotation.z += dt * 0.3;
       swirl.rotation.z -= dt * 0.8;
+      // Idle ambience: the portal never sits at a constant brightness.
+      ring.material.emissiveIntensity = ringBase * (1 + 0.12 * Math.sin(t * 1.1));
+      swirl.material.opacity = swirlBase * (1 + 0.3 * Math.sin(t * 0.7 + 1.2));
     },
   };
 }
@@ -172,8 +178,8 @@ export function buildApiCore(): ApiCoreHandle {
   group.add(beacon);
 
   const label = makeLabel("GO API", COLORS.green);
-  label.position.set(0, 4.6, 0);
-  group.add(label);
+  label.object.position.set(0, 4.6, 0);
+  group.add(label.object);
 
   const counter = makeCounter();
   counter.object.position.set(0, 4.15, 0);
@@ -197,10 +203,12 @@ export function buildApiCore(): ApiCoreHandle {
         errorLeft -= dt;
         bandMaterial.emissive.setHex(COLORS.red);
         bandMaterial.emissiveIntensity = baseIntensity * 2.2;
+        label.setDot(COLORS.red);
       } else {
         bandMaterial.emissive.setHex(COLORS.green);
         bandMaterial.emissiveIntensity =
           baseIntensity * (1 + 0.25 * Math.sin(t * pulseHz * Math.PI * 2));
+        label.setDot(COLORS.green);
       }
       beacon.rotation.y += dt * 0.8;
     },
@@ -240,14 +248,17 @@ export function buildPostgres(): Structure {
   group.add(crystal);
 
   const label = makeLabel("POSTGRESQL", COLORS.ice);
-  label.position.set(0, 3.4, 0);
-  group.add(label);
+  label.object.position.set(0, 3.4, 0);
+  group.add(label.object);
+
+  const crystalBase = crystal.material.emissiveIntensity;
 
   return {
     group,
     update: (dt, t) => {
       crystal.rotation.y += dt * 0.5;
       crystal.position.y = 1.8 + Math.sin(t * 1.1) * 0.08;
+      crystal.material.emissiveIntensity = crystalBase * (1 + 0.15 * Math.sin(t * 0.9 + 0.6));
     },
   };
 }
@@ -290,8 +301,8 @@ export function buildValkey(): ValkeyHandle {
   }
 
   const label = makeLabel("VALKEY", COLORS.amber);
-  label.position.set(0, 2.6, 0);
-  group.add(label);
+  label.object.position.set(0, 2.6, 0);
+  group.add(label.object);
 
   const IDLE_SPEED = 4;
   let speed = IDLE_SPEED;
@@ -354,8 +365,8 @@ export function buildFurnace(): FurnaceHandle {
   group.add(arc);
 
   const label = makeLabel("FFMPEG WORKER", COLORS.magenta);
-  label.position.set(0, 3.2, 0);
-  group.add(label);
+  label.object.position.set(0, 3.2, 0);
+  group.add(label.object);
 
   const counter = makeCounter();
   counter.object.position.set(0, 2.75, 0);
@@ -367,6 +378,7 @@ export function buildFurnace(): FurnaceHandle {
   let shown: string | null = null;
   let targetUnits = IDLE_UNITS;
   let currentUnits = IDLE_UNITS;
+  let failLeft = 0;
 
   const setArcPct = (pct: number): void => {
     arc.visible = pct >= 2;
@@ -395,23 +407,36 @@ export function buildFurnace(): FurnaceHandle {
       shown ??= job;
       if (job === shown) setArcPct(pct);
     },
-    finish: (job) => {
+    finish: (job, ok) => {
       jobs.delete(job);
       if (job === shown) shown = jobs.values().next().value ?? null;
       if (jobs.size === 0) {
         targetUnits = IDLE_UNITS;
         setArcPct(0);
       }
+      if (!ok) {
+        // Failure: angry red pop that the lerp then drags back down.
+        failLeft = 1.4;
+        currentUnits = Math.max(currentUnits, BURN_UNITS * 1.3);
+      }
     },
     setCounterText: (text) => counter.set(text),
     update: (dt, t) => {
       currentUnits += (targetUnits - currentUnits) * Math.min(dt * 3, 1);
-      // Heat shimmer: two incommensurate sines read as fire, not a strobe.
+      // Heat shimmer while burning; a slow ember waver when idle — the
+      // furnace never reads as a still image.
       const shimmer =
         currentUnits > IDLE_UNITS * 1.5
           ? 1 + 0.12 * Math.sin(t * 23) + 0.08 * Math.sin(t * 7.3)
-          : 1;
+          : 1 + 0.18 * Math.sin(t * 1.3 + 0.7) + 0.06 * Math.sin(t * 3.1);
       mouth.material.emissiveIntensity = currentUnits * unitScale * shimmer;
+      if (failLeft > 0) {
+        failLeft -= dt;
+        mouth.material.emissive.setHex(failLeft > 0.9 ? COLORS.red : COLORS.magenta);
+        label.setDot(COLORS.red);
+      } else {
+        label.setDot(COLORS.magenta);
+      }
     },
   };
 }
@@ -477,8 +502,8 @@ export function buildStorage(): StorageHandle {
   group.add(cap);
 
   const label = makeLabel("STORAGE", COLORS.fill);
-  label.position.set(0, 4.2, 0);
-  group.add(label);
+  label.object.position.set(0, 4.2, 0);
+  group.add(label.object);
 
   const counter = makeCounter();
   counter.object.position.set(0, 3.75, 0);
@@ -493,12 +518,14 @@ export function buildStorage(): StorageHandle {
       blipLeft = 0.35;
     },
     setCounterText: (text) => counter.set(text),
-    update: (dt) => {
+    update: (dt, t) => {
       level += (targetLevel - level) * Math.min(dt * 1.5, 1);
       applyLevel();
       if (blipLeft > 0) blipLeft -= dt;
       const blip = Math.max(blipLeft, 0) / 0.35;
-      fill.material.emissiveIntensity = fillBase * (1 + blip * 1.4);
+      // Slow "lapping" glow so the liquid looks liquid even between blips.
+      const lap = 1 + 0.08 * Math.sin(t * 1.4 + 2.3);
+      fill.material.emissiveIntensity = fillBase * lap * (1 + blip * 1.4);
     },
   };
 }
@@ -544,68 +571,136 @@ export function buildNginx(): Structure {
   group.add(lip);
 
   const label = makeLabel("NGINX · HLS", COLORS.cyan);
-  label.position.set(0, 2.9, 0);
-  group.add(label);
+  label.object.position.set(0, 2.9, 0);
+  group.add(label.object);
 
-  return { group };
-}
+  const throatBase = throat.material.emissiveIntensity;
+  const lipBase = lip.material.emissiveIntensity;
 
-// ---------------------------------------------------------------------------
-// 8. Cleaner — little drone idling around its corner of the floor.
-//    m5 choreographs real periodic sweep runs across the room.
-// ---------------------------------------------------------------------------
-export function buildCleaner(): Structure {
-  const group = new THREE.Group();
-
-  const shell = bodyMaterial(COLORS.green);
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.45, 0.5, 0.22, 20),
-    shell,
-  );
-  body.position.y = 0.17;
-  group.add(body);
-
-  // The pad travels with the drone — a moving puddle of underglow.
-  group.add(makeGroundPad(0.8, COLORS.green));
-
-  const glow = new THREE.Mesh(
-    new THREE.TorusGeometry(0.42, 0.035, 8, 28),
-    neonMaterial(COLORS.green, 1.2),
-  );
-  glow.rotation.x = Math.PI / 2;
-  glow.position.y = 0.07;
-  group.add(glow);
-
-  const mast = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6),
-    shell,
-  );
-  mast.position.y = 0.55;
-  group.add(mast);
-  const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(0.06, 8, 8),
-    neonMaterial(COLORS.green, 2.0),
-  );
-  tip.position.y = 0.82;
-  group.add(tip);
-
-  const label = makeLabel("CLEANER", COLORS.green);
-  label.position.set(0, 1.4, 0);
-  group.add(label);
-
-  // Lazy figure-eight around wherever scene.ts parked it.
-  let home: THREE.Vector3 | null = null;
   return {
     group,
     update: (_dt, t) => {
+      // Soft hum, throat and lip in counter-phase.
+      throat.material.emissiveIntensity = throatBase * (1 + 0.2 * Math.sin(t * 1.7 + 2));
+      lip.material.emissiveIntensity = lipBase * (1 + 0.2 * Math.sin(t * 1.7 + 2 + Math.PI));
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 8. Cleaner — sweeper drone patrolling its corner of the floor. Visual
+//    parts live in a `hull` subgroup so it can lean into turns without
+//    tilting the label or the underglow pad.
+// ---------------------------------------------------------------------------
+export function buildCleaner(): Structure {
+  const group = new THREE.Group();
+  const hull = new THREE.Group();
+  group.add(hull);
+
+  const shell = bodyMaterial(COLORS.green, 0.2, { flatShading: true });
+
+  // Chassis: squat cylinder + squashed dome — reads "machine", not "puck".
+  const chassis = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.68, 0.3, 24),
+    shell,
+  );
+  chassis.position.y = 0.21;
+  hull.add(chassis);
+
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    shell,
+  );
+  dome.scale.y = 0.55;
+  dome.position.y = 0.36;
+  hull.add(dome);
+
+  // Bumper ring — soft green, the drone's signature silhouette line.
+  const bumper = new THREE.Mesh(
+    new THREE.TorusGeometry(0.66, 0.05, 8, 28),
+    neonMaterial(COLORS.green, 0.5),
+  );
+  bumper.rotation.x = Math.PI / 2;
+  bumper.position.y = 0.2;
+  hull.add(bumper);
+
+  const underglow = new THREE.Mesh(
+    new THREE.TorusGeometry(0.55, 0.05, 8, 28),
+    neonMaterial(COLORS.green, 1.4),
+  );
+  underglow.rotation.x = Math.PI / 2;
+  underglow.position.y = 0.07;
+  hull.add(underglow);
+
+  // Headlight eyes — forward is +Z (the travel heading).
+  for (const x of [-0.18, 0.18]) {
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 10, 10),
+      neonMaterial(COLORS.green, 2.2),
+    );
+    eye.position.set(x, 0.32, 0.55);
+    hull.add(eye);
+  }
+
+  // Spinning sweeper brushes at the front corners — hexagonal so the
+  // rotation is actually visible.
+  const brushes: THREE.Mesh[] = [];
+  for (const x of [-0.45, 0.45]) {
+    const brush = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.06, 6),
+      shell,
+    );
+    brush.position.set(x, 0.06, 0.5);
+    hull.add(brush);
+    brushes.push(brush);
+  }
+
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6), shell);
+  mast.position.y = 0.95;
+  hull.add(mast);
+  const tip = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 8, 8),
+    neonMaterial(COLORS.green, 2.0),
+  );
+  tip.position.y = 1.33;
+  hull.add(tip);
+  const tipBase = tip.material.emissiveIntensity;
+
+  // The pad travels with the drone — a moving puddle of underglow.
+  group.add(makeGroundPad(1.05, COLORS.green));
+
+  const label = makeLabel("CLEANER", COLORS.green);
+  label.object.position.set(0, 1.9, 0);
+  group.add(label.object);
+
+  // Lazy figure-eight around wherever scene.ts parked it, leaning into
+  // the turns like it means it.
+  let home: THREE.Vector3 | null = null;
+  let prevHeading = 0;
+  return {
+    group,
+    update: (dt, t) => {
       home ??= group.position.clone();
-      const x = home.x + Math.sin(t * 0.25) * 2.2;
-      const z = home.z + Math.sin(t * 0.5) * 1.1;
+      const x = home.x + Math.sin(t * 0.25) * 2.6;
+      const z = home.z + Math.sin(t * 0.5) * 1.3;
       // Face the direction of travel (derivatives of the path above).
-      const dx = Math.cos(t * 0.25) * 0.25 * 2.2;
-      const dz = Math.cos(t * 0.5) * 0.5 * 1.1;
+      const dx = Math.cos(t * 0.25) * 0.25 * 2.6;
+      const dz = Math.cos(t * 0.5) * 0.5 * 1.3;
       group.position.set(x, group.position.y, z);
-      group.rotation.y = Math.atan2(dx, dz);
+      const heading = Math.atan2(dx, dz);
+      group.rotation.y = heading;
+
+      // Lean from turn rate (wrapped so the ±π seam doesn't kick).
+      let dh = heading - prevHeading;
+      if (dh > Math.PI) dh -= Math.PI * 2;
+      if (dh < -Math.PI) dh += Math.PI * 2;
+      prevHeading = heading;
+      const lean = THREE.MathUtils.clamp((dh / Math.max(dt, 1e-3)) * 0.12, -0.2, 0.2);
+      hull.rotation.z += (lean - hull.rotation.z) * Math.min(dt * 6, 1);
+
+      for (const brush of brushes) brush.rotation.y += dt * 9;
+      // Beacon winks rather than glows — pow() turns a sine into a blink.
+      tip.material.emissiveIntensity = tipBase * (0.3 + 1.4 * Math.pow(Math.max(Math.sin(t * 1.6), 0), 8));
     },
   };
 }

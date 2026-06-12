@@ -1,23 +1,36 @@
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
+export interface StructureLabel {
+  object: CSS2DObject;
+  /** Recolor the status dot (health indicator — red during errors). */
+  setDot(hex: number): void;
+}
+
 /**
  * Floating name tag for a structure. DOM-based (CSS2DRenderer) so the text
- * stays crisp at any zoom and never participates in bloom. `accentHex`
- * colors the little status dot — it doubles as a health indicator later
- * (milestone 4 flips it red on errors).
+ * stays crisp at any zoom and never participates in bloom. The status dot
+ * starts in the structure's identity color; setDot flips it (cached — safe
+ * to call every frame).
  */
-export function makeLabel(text: string, accentHex: number): CSS2DObject {
+export function makeLabel(text: string, accentHex: number): StructureLabel {
   const el = document.createElement("div");
   el.className = "label";
 
   const dot = document.createElement("span");
   dot.className = "label-dot";
-  const css = `#${accentHex.toString(16).padStart(6, "0")}`;
-  dot.style.background = css;
-  dot.style.color = css; // drives the glow (box-shadow: currentColor)
+
+  let current = -1;
+  const setDot = (hex: number): void => {
+    if (hex === current) return;
+    current = hex;
+    const css = `#${hex.toString(16).padStart(6, "0")}`;
+    dot.style.background = css;
+    dot.style.color = css; // drives the glow (box-shadow: currentColor)
+  };
+  setDot(accentHex);
 
   el.append(dot, text);
-  return new CSS2DObject(el);
+  return { object: new CSS2DObject(el), setDot };
 }
 
 /**
