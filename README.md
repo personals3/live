@@ -38,8 +38,16 @@ Deployed at **live.personals3.tech**.
 | 5 — polish: idle ambience, error states, load sequence, cleaner body upgrade | ✅ |
 | 6 — live SSE connector + server telemetry endpoint | ✅ |
 
-Connection policy: the scene connects to `GET /api/live` (SSE) on load
-and shows a green **LIVE** badge. If the socket drops or never connects,
+Connection policy: the scene connects to the live stream on load and
+shows a green **LIVE** badge. The stream URL defaults to the relative
+`/api/live` (same-origin deploys); for static hosts that can't proxy —
+live.personals3.tech on gitDeploy — bake the absolute URL in at build
+time (the server sends `Access-Control-Allow-Origin: *` on this one
+endpoint):
+
+```bash
+VITE_LIVE_URL=https://personals3.tech/api/live npm run build
+``` If the socket drops or never connects,
 the room dims, the badge pulses **RECONNECTING · MOCK DATA**, and the
 mock feed keeps the scene alive while `live.ts` retries with exponential
 backoff (1s → 30s cap, jittered). The moment the stream is back, mock

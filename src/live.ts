@@ -19,6 +19,14 @@ export interface LiveFeedOptions {
   onDown?: () => void;
 }
 
+// live.personals3.tech is a static host with no proxy, so the stream URL
+// is baked in at build time:
+//   VITE_LIVE_URL=https://personals3.tech/api/live npm run build
+// Unset, it stays relative for same-origin deploys (and local dev, where
+// the fallback-to-mock path is the expected behavior anyway).
+const DEFAULT_URL =
+  (import.meta.env.VITE_LIVE_URL as string | undefined) ?? "/api/live";
+
 /**
  * Real telemetry over SSE (chosen over WebSocket — plain HTTP, friendly
  * to Cloudflare Tunnel). EventSource's built-in retry is bypassed: we
@@ -37,7 +45,7 @@ export class LiveFeed implements EventFeed {
   private stopped = false;
 
   constructor(opts: LiveFeedOptions = {}) {
-    this.url = opts.url ?? "/api/live";
+    this.url = opts.url ?? DEFAULT_URL;
     this.onUp = opts.onUp ?? (() => {});
     this.onDown = opts.onDown ?? (() => {});
   }
