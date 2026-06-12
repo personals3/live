@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 import {
   BloomEffect,
   EffectComposer,
@@ -23,6 +24,7 @@ export class App {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly controls: OrbitControls;
   private readonly composer: EffectComposer;
+  private readonly labelRenderer: CSS2DRenderer;
   private readonly scene: THREE.Scene;
   private readonly updatables: Updatable[];
   private readonly fps: FpsMeter;
@@ -46,6 +48,14 @@ export class App {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(this.renderer.domElement);
 
+    // DOM overlay for structure labels — crisp text, outside the bloom.
+    this.labelRenderer = new CSS2DRenderer();
+    this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    this.labelRenderer.domElement.style.position = "absolute";
+    this.labelRenderer.domElement.style.inset = "0";
+    this.labelRenderer.domElement.style.pointerEvents = "none";
+    container.appendChild(this.labelRenderer.domElement);
+
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05070d);
     this.scene.fog = new THREE.FogExp2(0x05070d, 0.018);
@@ -59,7 +69,7 @@ export class App {
     this.camera.position.set(14, 11, 14);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, 1.5, 0);
+    this.controls.target.set(0, 1.8, 0);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.06;
     this.controls.minDistance = 6;
@@ -129,6 +139,7 @@ export class App {
     this.controls.update();
     for (const update of this.updatables) update(dt, this.elapsed);
     this.composer.render(dt);
+    this.labelRenderer.render(this.scene, this.camera);
     this.fps.tick(now);
   };
 
@@ -150,5 +161,6 @@ export class App {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
+    this.labelRenderer.setSize(w, h);
   };
 }

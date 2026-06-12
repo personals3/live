@@ -32,15 +32,21 @@ Deployed at **live.personals3.tech**.
 
 | Milestone | State |
 |---|---|
-| 2 — scaffold: scene shell, lighting, bloom, orbit @ 60fps | ✅ this commit |
-| 3 — static diorama: 8 labeled structures, materials | ⬜ |
+| 2 — scaffold: scene shell, lighting, bloom, orbit @ 60fps | ✅ |
+| 3 — static diorama: 8 labeled structures, materials | ✅ |
 | 4 — mock event stream: particles, furnace, tank, counters | ⬜ |
 | 5 — polish: idle ambience, error states, load sequence | ⬜ |
 | 6 — live SSE connector + server telemetry endpoint | ⬜ |
 
-The current scene shows **placeholder calibration shapes** (an emissive
-icosahedron + three brand-color cubes) — they exist to verify bloom, tone
-mapping, and the frame loop, and are replaced wholesale in milestone 3.
+The diorama: **Cloudflare Tunnel** (portal up high, beam aimed at the
+core) → **Go API** (hex tower, breathing green bands) flanked by
+**PostgreSQL** (vault cage + floating crystal), **Valkey** (amber ring
+with racing beads — cache is motion), **FFmpeg worker** (furnace, idle
+magenta ember + dark progress ring), **Storage** (translucent tank,
+placeholder 42% fill), **Nginx · HLS** (emitter horn aimed outward), and
+the **Cleaner** drone idling around the floor. Values that look alive but
+static (tank level, furnace glow) bind to real telemetry in milestone 4 —
+the hook points are marked `// m4:` in `src/diorama.ts`.
 
 ## Run it
 
@@ -68,11 +74,19 @@ Useful URL flags: `?stats=1` shows the FPS meter (always on in dev builds).
 
 ```
 src/
-  main.ts    entry — mounts App
-  app.ts     engine shell: renderer, camera, orbit, bloom composer, loop
-  scene.ts   scene CONTENTS — the diorama lives here, engine stays put
-  stats.ts   tiny FPS meter (?stats=1)
+  main.ts       entry — mounts App
+  app.ts        engine shell: renderer, camera, orbit, bloom, labels, loop
+  scene.ts      environment + floor plan — composes the structures
+  diorama.ts    the 8 structures, one builder each (m4 hook points marked)
+  materials.ts  palette + luminance-compensated neon materials
+  labels.ts     CSS2D name tags (DOM text — crisp, bloom-free)
+  stats.ts      tiny FPS meter (?stats=1)
 ```
+
+A note on the materials: bloom thresholds on Rec. 709 luminance, which is
+~72% green — at equal intensity magenta would never bloom while cyan and
+amber halo happily. `neonMaterial()` luminance-compensates every palette
+color against a cyan anchor so the whole palette glows equally.
 
 Coming in later milestones: `events.ts` (the typed event protocol),
 `mock.ts` (fake generator), `live.ts` (SSE + reconnect).

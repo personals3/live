@@ -1,22 +1,34 @@
 import * as THREE from "three";
 
-import { COLORS, neonMaterial } from "./materials";
+import {
+  buildApiCore,
+  buildCleaner,
+  buildFurnace,
+  buildNginx,
+  buildPostgres,
+  buildStorage,
+  buildTunnel,
+  buildValkey,
+  type Structure,
+} from "./diorama";
 
 /** Per-frame animation hook: (delta seconds, total elapsed seconds). */
 export type Updatable = (dt: number, t: number) => void;
 
-const { cyan: CYAN, magenta: MAGENTA, amber: AMBER } = COLORS;
+// Floor plan (top view; the camera starts looking in from +x/+z):
+//
+//        tunnel ◌ (high)        ▽ nginx
+//   postgres ▣        ⬡ API        ▢ furnace
+//        valkey ◎            ▢ storage
+//                  ◦ cleaner (roams)
+//
+const API_TOP = new THREE.Vector3(0, 3.4, 0);
+const TUNNEL_POS = new THREE.Vector3(-5, 6.5, -5);
 
-/**
- * Scene contents. MILESTONE 2 PLACEHOLDER: a lit floor plus a few emissive
- * calibration shapes so lighting, bloom, tone mapping, and the frame loop
- * can be verified at 60fps. Milestone 3 replaces the placeholders with the
- * eight labeled structures of the machine-room diorama.
- */
 export function buildScene(scene: THREE.Scene): Updatable[] {
   const updatables: Updatable[] = [];
 
-  // --- Lighting: dim and cool; the final look is mostly emissive-driven.
+  // --- Lighting: dim and cool; the structures' emissives carry the look.
   scene.add(new THREE.HemisphereLight(0x223344, 0x05070d, 0.6));
   const key = new THREE.DirectionalLight(0x8899bb, 0.4);
   key.position.set(5, 10, 3);
@@ -34,37 +46,49 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
   grid.position.y = 0.01; // avoid z-fighting with the slab
   scene.add(grid);
 
-  // --- PLACEHOLDER centerpiece: emissive icosahedron to calibrate bloom.
-  const core = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(1.6, 0),
-    neonMaterial(CYAN, 1.6, { roughness: 0.35, flatShading: true }),
-  );
-  core.position.y = 2.2;
-  scene.add(core);
-  updatables.push((dt) => {
-    core.rotation.y += dt * 0.4;
-    core.rotation.x += dt * 0.11;
+  // --- Background dressing: unlit rack silhouettes for depth; the fog
+  // swallows them at the edges.
+  const rackMaterial = new THREE.MeshStandardMaterial({
+    color: 0x0c1019,
+    roughness: 1,
   });
+  const racks: Array<[x: number, z: number, w: number, h: number]> = [
+    [-11, -8, 1.6, 2.6],
+    [-13, 2, 1.4, 1.8],
+    [-9, 9, 1.8, 2.2],
+    [10, -9, 1.6, 3.0],
+    [13, 1, 1.4, 2.4],
+    [9, 10, 1.8, 1.6],
+  ];
+  for (const [x, z, w, h] of racks) {
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), rackMaterial);
+    rack.position.set(x, h / 2, z);
+    scene.add(rack);
+  }
 
-  // --- PLACEHOLDER accents: one cube per brand color, bobbing gently, so
-  // bloom can be judged across the palette (not just cyan).
-  const accents: THREE.Mesh[] = [];
-  [CYAN, MAGENTA, AMBER].forEach((colorHex, i) => {
-    const angle = (i / 3) * Math.PI * 2;
-    const cube = new THREE.Mesh(
-      new THREE.BoxGeometry(0.7, 0.7, 0.7),
-      neonMaterial(colorHex, 1.8),
-    );
-    cube.position.set(Math.cos(angle) * 5, 1.1, Math.sin(angle) * 5);
-    scene.add(cube);
-    accents.push(cube);
-  });
-  updatables.push((_dt, t) => {
-    accents.forEach((cube, i) => {
-      cube.position.y = 1.1 + Math.sin(t * 1.3 + i * 2.1) * 0.25;
-      cube.rotation.y = t * 0.6 + i;
-    });
-  });
+  // --- The eight structures.
+  const place = (s: Structure, x: number, y: number, z: number): void => {
+    s.group.position.set(x, y, z);
+    scene.add(s.group);
+    if (s.update) updatables.push(s.update);
+  };
+
+  const tunnel = buildTunnel(TUNNEL_POS.distanceTo(API_TOP));
+  place(tunnel, TUNNEL_POS.x, TUNNEL_POS.y, TUNNEL_POS.z);
+  tunnel.group.lookAt(API_TOP); // portal faces the core; beam runs along +Z
+
+  place(buildApiCore(), 0, 0, 0);
+  place(buildPostgres(), -7, 0, -1);
+  place(buildValkey(), -4, 0, 3.5);
+  place(buildFurnace(), 7, 0, -1.5);
+  place(buildStorage(), 5.5, 0, 4);
+
+  const nginx = buildNginx();
+  place(nginx, 3.5, 0, -6.5);
+  // Horn opens along local +Z — aim it away from the room's center.
+  nginx.group.lookAt(new THREE.Vector3(7, 0, -13));
+
+  place(buildCleaner(), 0, 0, 6.5);
 
   return updatables;
 }
