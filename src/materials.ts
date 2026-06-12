@@ -47,14 +47,56 @@ export function neonMaterial(
   });
 }
 
-/** Non-glowing structure body — dark, matte, catches the cool key light. */
-export function darkMaterial(
+/**
+ * Inject a view-dependent fresnel rim into any MeshStandardMaterial: faces
+ * seen edge-on pick up a faint glow in `hex`. This is what keeps dark
+ * bodies readable against the dark background from every orbit angle —
+ * the rule of the scene is "identity through rim light and pads, drama
+ * through bloom". Intensities stay below the bloom luminance threshold
+ * (0.25), so rims never halo.
+ */
+export function applyRim(
+  mat: THREE.MeshStandardMaterial,
+  hex: number,
+  intensity = 0.15,
+): THREE.MeshStandardMaterial {
+  const rimColor = new THREE.Color(hex);
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uRimColor = { value: rimColor };
+    shader.uniforms.uRimIntensity = { value: intensity };
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform vec3 uRimColor;\nuniform float uRimIntensity;",
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+        float rimFresnel = pow(1.0 - saturate(dot(normalize(vViewPosition), normal)), 3.0);
+        totalEmissiveRadiance += uRimColor * rimFresnel * uRimIntensity;`,
+      );
+  };
+  // Identical GLSL for every rim material — share one program; the
+  // color/intensity differences live in per-material uniforms.
+  mat.customProgramCacheKey = () => "ps3-rim";
+  return mat;
+}
+
+/** Structure body — dark and matte, but rimmed in the structure's identity
+ *  color so its silhouette always reads against the night. */
+export function bodyMaterial(
+  rimHex: number,
+  rimIntensity = 0.15,
   extra: Partial<THREE.MeshStandardMaterialParameters> = {},
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: 0x10141d,
-    roughness: 0.65,
-    metalness: 0.2,
-    ...extra,
-  });
+  return applyRim(
+    new THREE.MeshStandardMaterial({
+      color: 0x10141d,
+      roughness: 0.65,
+      metalness: 0.2,
+      ...extra,
+    }),
+    rimHex,
+    rimIntensity,
+  );
 }

@@ -68,7 +68,11 @@ docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp \
 ```
 
 Useful URL flags: `?stats=1` shows the FPS meter (always on in dev builds).
-`?mock=1` will force the mock event stream once milestone 4 lands.
+`?nobloom=1` disables the bloom pass — the scene's lighting rule is
+"identity through rim light and ground pads, drama through bloom", so
+every structure must stay identifiable with bloom off; this flag is how
+you check that. `?mock=1` will force the mock event stream once
+milestone 4 lands.
 
 ## Architecture (code)
 
@@ -87,6 +91,14 @@ A note on the materials: bloom thresholds on Rec. 709 luminance, which is
 ~72% green — at equal intensity magenta would never bloom while cyan and
 amber halo happily. `neonMaterial()` luminance-compensates every palette
 color against a cyan anchor so the whole palette glows equally.
+
+Idle visibility follows one rule: **identity through rim light and pads,
+drama through bloom.** Every body material carries a faint fresnel rim in
+its structure's identity color (`bodyMaterial()` — intensity 0.15, below
+the bloom threshold so rims never halo), every structure sits on a softly
+glowing ground pad in its color, and background racks get a dimmer
+cool-grey rim so they read as atmosphere, not structures. The fog and
+floor stay night-dark; verify with `?nobloom=1`.
 
 Coming in later milestones: `events.ts` (the typed event protocol),
 `mock.ts` (fake generator), `live.ts` (SSE + reconnect).

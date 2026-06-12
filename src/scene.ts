@@ -9,8 +9,10 @@ import {
   buildStorage,
   buildTunnel,
   buildValkey,
+  makeGroundPad,
   type Structure,
 } from "./diorama";
+import { bodyMaterial, COLORS } from "./materials";
 
 /** Per-frame animation hook: (delta seconds, total elapsed seconds). */
 export type Updatable = (dt: number, t: number) => void;
@@ -29,10 +31,16 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
   const updatables: Updatable[] = [];
 
   // --- Lighting: dim and cool; the structures' emissives carry the look.
-  scene.add(new THREE.HemisphereLight(0x223344, 0x05070d, 0.6));
+  // Two directions (key + opposing fill) so bodies show form — shaded
+  // faces, not silhouette-black. The floor's near-black albedo keeps the
+  // night mood despite the extra light.
+  scene.add(new THREE.HemisphereLight(0x223344, 0x05070d, 0.75));
   const key = new THREE.DirectionalLight(0x8899bb, 0.4);
   key.position.set(5, 10, 3);
   scene.add(key);
+  const fillLight = new THREE.DirectionalLight(0x4a5a78, 0.3);
+  fillLight.position.set(-6, 4, -8);
+  scene.add(fillLight);
 
   // --- Floor: dark slab + faint grid, "server room at night".
   const floor = new THREE.Mesh(
@@ -46,9 +54,10 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
   grid.position.y = 0.01; // avoid z-fighting with the slab
   scene.add(grid);
 
-  // --- Background dressing: unlit rack silhouettes for depth; the fog
-  // swallows them at the edges.
-  const rackMaterial = new THREE.MeshStandardMaterial({
+  // --- Background dressing: rack silhouettes for depth; the fog swallows
+  // them at the edges. Cool-grey rim at half the structures' intensity —
+  // they should read as atmosphere, never compete with the real eight.
+  const rackMaterial = bodyMaterial(0x8fa3b8, 0.07, {
     color: 0x0c1019,
     roughness: 1,
   });
@@ -66,29 +75,44 @@ export function buildScene(scene: THREE.Scene): Updatable[] {
     scene.add(rack);
   }
 
-  // --- The eight structures.
-  const place = (s: Structure, x: number, y: number, z: number): void => {
+  // --- The eight structures. Every one gets a glowing ground pad in its
+  // color (floor anchor — position reads even when the body is dim). The
+  // cleaner carries its own traveling pad; the tunnel floats, so its pad
+  // marks the floor directly beneath the portal.
+  const place = (
+    s: Structure,
+    x: number,
+    y: number,
+    z: number,
+    padRadius = 0,
+    padHex = 0,
+  ): void => {
     s.group.position.set(x, y, z);
     scene.add(s.group);
     if (s.update) updatables.push(s.update);
+    if (padRadius > 0) {
+      const pad = makeGroundPad(padRadius, padHex);
+      pad.position.set(x, 0, z);
+      scene.add(pad);
+    }
   };
 
   const tunnel = buildTunnel(TUNNEL_POS.distanceTo(API_TOP));
-  place(tunnel, TUNNEL_POS.x, TUNNEL_POS.y, TUNNEL_POS.z);
+  place(tunnel, TUNNEL_POS.x, TUNNEL_POS.y, TUNNEL_POS.z, 1.6, COLORS.cyan);
   tunnel.group.lookAt(API_TOP); // portal faces the core; beam runs along +Z
 
-  place(buildApiCore(), 0, 0, 0);
-  place(buildPostgres(), -7, 0, -1);
-  place(buildValkey(), -4, 0, 3.5);
-  place(buildFurnace(), 7, 0, -1.5);
-  place(buildStorage(), 5.5, 0, 4);
+  place(buildApiCore(), 0, 0, 0, 2.2, COLORS.green);
+  place(buildPostgres(), -7, 0, -1, 2.0, COLORS.ice);
+  place(buildValkey(), -4, 0, 3.5, 1.3, COLORS.amber);
+  place(buildFurnace(), 7, 0, -1.5, 1.8, COLORS.magenta);
+  place(buildStorage(), 5.5, 0, 4, 1.6, COLORS.fill);
 
   const nginx = buildNginx();
-  place(nginx, 3.5, 0, -6.5);
+  place(nginx, 3.5, 0, -6.5, 1.4, COLORS.cyan);
   // Horn opens along local +Z — aim it away from the room's center.
   nginx.group.lookAt(new THREE.Vector3(7, 0, -13));
 
-  place(buildCleaner(), 0, 0, 6.5);
+  place(buildCleaner(), 0, 0, 6.5); // pad built in — it travels with the drone
 
   return updatables;
 }

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { makeLabel } from "./labels";
-import { COLORS, darkMaterial, neonMaterial } from "./materials";
+import { applyRim, bodyMaterial, COLORS, neonMaterial } from "./materials";
 import type { Updatable } from "./scene";
 
 /**
@@ -18,6 +18,38 @@ import type { Updatable } from "./scene";
 export interface Structure {
   group: THREE.Group;
   update?: Updatable;
+}
+
+/**
+ * Faintly glowing disc + edge ring that anchors a structure to the floor —
+ * its position stays visible in the structure's color even when the body
+ * is dim. Additive and well under the bloom threshold.
+ */
+export function makeGroundPad(radius: number, hex: number): THREE.Group {
+  const pad = new THREE.Group();
+  const padMaterial = (opacity: number) =>
+    new THREE.MeshBasicMaterial({
+      color: hex,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(radius, 40), padMaterial(0.07));
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.02; // above the grid (0.01), below everything else
+  pad.add(disc);
+
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(radius * 0.92, radius, 48),
+    padMaterial(0.22),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.025;
+  pad.add(ring);
+
+  return pad;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +117,7 @@ export function buildApiCore(): Structure {
 
   const tower = new THREE.Mesh(
     new THREE.CylinderGeometry(1.1, 1.3, 3.2, 6),
-    darkMaterial({ flatShading: true }),
+    bodyMaterial(COLORS.green, 0.15, { flatShading: true }),
   );
   tower.position.y = 1.6;
   group.add(tower);
@@ -129,7 +161,7 @@ export function buildApiCore(): Structure {
 // ---------------------------------------------------------------------------
 export function buildPostgres(): Structure {
   const group = new THREE.Group();
-  const cage = darkMaterial({ flatShading: true });
+  const cage = bodyMaterial(COLORS.ice, 0.15, { flatShading: true });
 
   const plinth = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 2.4), cage);
   plinth.position.y = 0.5;
@@ -177,7 +209,7 @@ export function buildValkey(): Structure {
 
   const pedestal = new THREE.Mesh(
     new THREE.CylinderGeometry(0.5, 0.7, 0.5, 8),
-    darkMaterial({ flatShading: true }),
+    bodyMaterial(COLORS.amber, 0.15, { flatShading: true }),
   );
   pedestal.position.y = 0.25;
   group.add(pedestal);
@@ -225,17 +257,12 @@ export function buildValkey(): Structure {
 export function buildFurnace(): Structure {
   const group = new THREE.Group();
 
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(2.0, 1.8, 2.0),
-    darkMaterial({ flatShading: true }),
-  );
+  const iron = bodyMaterial(COLORS.magenta, 0.15, { flatShading: true });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.8, 2.0), iron);
   body.position.y = 0.9;
   group.add(body);
 
-  const chimney = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 1.1, 0.5),
-    darkMaterial({ flatShading: true }),
-  );
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, 0.5), iron);
   chimney.position.set(0.6, 2.35, -0.6);
   group.add(chimney);
 
@@ -271,23 +298,31 @@ export function buildStorage(): Structure {
   const group = new THREE.Group();
   const TANK_HEIGHT = 3;
 
+  const housing = bodyMaterial(COLORS.fill);
   const base = new THREE.Mesh(
     new THREE.CylinderGeometry(1.15, 1.25, 0.3, 24),
-    darkMaterial(),
+    housing,
   );
   base.position.y = 0.15;
   group.add(base);
 
+  // Glass shell: fresnel-rimmed so its edges catch a faint line of light.
+  // The raw rim intensity looks high but gets multiplied by the 0.12
+  // alpha, landing at ~0.14 effective — same "faint" as the bodies.
   const shell = new THREE.Mesh(
     new THREE.CylinderGeometry(1, 1, TANK_HEIGHT, 24, 1, true),
-    new THREE.MeshStandardMaterial({
-      color: 0x9fd4ff,
-      transparent: true,
-      opacity: 0.1,
-      roughness: 0.15,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
+    applyRim(
+      new THREE.MeshStandardMaterial({
+        color: 0x9fd4ff,
+        transparent: true,
+        opacity: 0.12,
+        roughness: 0.15,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+      COLORS.fill,
+      1.2,
+    ),
   );
   shell.position.y = 0.3 + TANK_HEIGHT / 2;
   group.add(shell);
@@ -305,7 +340,7 @@ export function buildStorage(): Structure {
 
   const cap = new THREE.Mesh(
     new THREE.CylinderGeometry(1.15, 1.05, 0.22, 24),
-    darkMaterial(),
+    housing,
   );
   cap.position.y = 0.3 + TANK_HEIGHT + 0.11;
   group.add(cap);
@@ -326,7 +361,7 @@ export function buildNginx(): Structure {
 
   const stand = new THREE.Mesh(
     new THREE.BoxGeometry(0.4, 1.3, 0.4),
-    darkMaterial({ flatShading: true }),
+    bodyMaterial(COLORS.cyan, 0.15, { flatShading: true }),
   );
   stand.position.y = 0.65;
   group.add(stand);
@@ -334,7 +369,10 @@ export function buildNginx(): Structure {
   // Horn opens along +Z (the direction scene.ts aims away from center).
   const horn = new THREE.Mesh(
     new THREE.CylinderGeometry(0.9, 0.25, 1.6, 12, 1, true),
-    darkMaterial({ flatShading: true, side: THREE.DoubleSide }),
+    bodyMaterial(COLORS.cyan, 0.15, {
+      flatShading: true,
+      side: THREE.DoubleSide,
+    }),
   );
   horn.rotation.x = Math.PI / 2;
   horn.position.set(0, 1.5, 0.3);
@@ -368,12 +406,16 @@ export function buildNginx(): Structure {
 export function buildCleaner(): Structure {
   const group = new THREE.Group();
 
+  const shell = bodyMaterial(COLORS.green);
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(0.45, 0.5, 0.22, 20),
-    darkMaterial(),
+    shell,
   );
   body.position.y = 0.17;
   group.add(body);
+
+  // The pad travels with the drone — a moving puddle of underglow.
+  group.add(makeGroundPad(0.8, COLORS.green));
 
   const glow = new THREE.Mesh(
     new THREE.TorusGeometry(0.42, 0.035, 8, 28),
@@ -385,7 +427,7 @@ export function buildCleaner(): Structure {
 
   const mast = new THREE.Mesh(
     new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6),
-    darkMaterial(),
+    shell,
   );
   mast.position.y = 0.55;
   group.add(mast);

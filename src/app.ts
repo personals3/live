@@ -88,17 +88,22 @@ export class App {
       frameBufferType: THREE.HalfFloatType,
     });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(
-      new EffectPass(
-        this.camera,
-        new BloomEffect({
-          intensity: 0.9,
-          luminanceThreshold: 0.25,
-          luminanceSmoothing: 0.2,
-          mipmapBlur: true,
-        }),
-      ),
-    );
+    // ?nobloom=1 — debug flag for the lighting rule "every structure must
+    // be identifiable WITHOUT bloom" (rim light + ground pads do that job;
+    // bloom only adds the drama).
+    if (!new URLSearchParams(location.search).has("nobloom")) {
+      this.composer.addPass(
+        new EffectPass(
+          this.camera,
+          new BloomEffect({
+            intensity: 0.9,
+            luminanceThreshold: 0.25,
+            luminanceSmoothing: 0.2,
+            mipmapBlur: true,
+          }),
+        ),
+      );
+    }
 
     this.fps = new FpsMeter(document.getElementById("stats") as HTMLElement);
 
