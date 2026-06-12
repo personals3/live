@@ -3,6 +3,7 @@ import { Director } from "./director";
 import { LiveFeed } from "./live";
 import { MockFeed } from "./mock";
 import { INTRO_TOTAL_S } from "./scene";
+import { ScriptDirector } from "./script";
 import { StoryRig, wireStoryDOM } from "./story";
 
 const container = document.getElementById("app");
@@ -12,9 +13,11 @@ const app = new App(container);
 const director = new Director(app.controls);
 const handle = director.handle.bind(director);
 
-// Scroll story: the rig owns the camera until the release section.
+// Scroll story: the rig owns the camera until the release section; the
+// script director runs each section's demo loop as it comes into view.
 app.setRig(new StoryRig(app.camera, (on) => app.setExplore(on)));
-wireStoryDOM();
+const script = new ScriptDirector(app.controls, director);
+wireStoryDOM((i) => script.onSection(i));
 
 // Connection state shows in two places: the HUD chip and the hero chip.
 const chips = [

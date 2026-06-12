@@ -38,6 +38,7 @@ const SWEEP_S = 3;
 export class Director {
   private readonly uptimeEl: HTMLElement | null;
   private lastDiskPct: number | null = null;
+  private ambientSubtle = false;
   private readonly tmp = new THREE.Vector3();
 
   constructor(private readonly c: SceneControls) {
@@ -51,19 +52,56 @@ export class Director {
     this.lastDiskPct = null;
   }
 
+  // ---- Story hooks (R3) — used by the ScriptDirector ----------------------
+
+  /** During the scroll story the ambient stream stays quiet so the
+   *  scripted demos read clearly; explore mode gets the full show.
+   *  Counters/stats/furnace state are never damped — only spawn visuals. */
+  setAmbientSubtle(on: boolean): void {
+    this.ambientSubtle = on;
+  }
+
+  demoGlint(): void {
+    this.glint();
+  }
+  demoPgPulse(): void {
+    this.pgPulse();
+  }
+  demoUpload(): void {
+    const v = BUCKET_VISUALS.medium;
+    this.c.particles.spawnRoute(this.c.uploadRoute, UPLOAD_COLOR, v.duration, v.scale, () =>
+      this.c.storage.blip(),
+    );
+  }
+  demoDownload(): void {
+    const v = BUCKET_VISUALS.medium;
+    this.c.particles.spawnRoute(this.c.downloadRoute, DOWNLOAD_COLOR, v.duration, v.scale);
+  }
+  demoBurst(): void {
+    this.c.particles.spawnBurst(this.c.furnaceTop, BURST_COLOR, 26);
+  }
+  demoSweep(): void {
+    this.cleanerShow();
+  }
+
   handle(e: LiveEvent): void {
     const c = this.c;
     switch (e.type) {
       case "request":
         c.valkey.nudge();
-        this.glint();
-        // The vault is consulted often, not always.
-        if (Math.random() < 1 / 3) this.pgPulse();
+        if (!this.ambientSubtle) {
+          this.glint();
+          // The vault is consulted often, not always.
+          if (Math.random() < 1 / 3) this.pgPulse();
+        }
         break;
 
       case "upload": {
-        const v = BUCKET_VISUALS[e.size];
         c.valkey.nudge();
+        // Subtle mode lets the occasional ambient journey through so the
+        // room never reads as staged — most are damped.
+        if (this.ambientSubtle && Math.random() > 0.3) break;
+        const v = BUCKET_VISUALS[e.size];
         this.glint();
         this.pgPulse(); // object row write
         c.particles.spawnRoute(c.uploadRoute, UPLOAD_COLOR, v.duration, v.scale, () =>
@@ -73,8 +111,9 @@ export class Director {
       }
 
       case "download": {
-        const v = BUCKET_VISUALS[e.size];
         c.valkey.nudge();
+        if (this.ambientSubtle && Math.random() > 0.3) break;
+        const v = BUCKET_VISUALS[e.size];
         this.glint();
         this.pgPulse(); // metadata lookup
         c.particles.spawnRoute(c.downloadRoute, DOWNLOAD_COLOR, v.duration, v.scale);
