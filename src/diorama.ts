@@ -49,6 +49,18 @@ export interface ValkeyHandle extends Structure {
   nudge(): void;
 }
 
+export interface PostgresHandle extends Structure {
+  /** Metadata write landed — crystal brightens for a beat. */
+  pulse(): void;
+}
+
+export interface CleanerHandle extends Structure {
+  /** Sweep show: pause the patrol, spin the brushes up, beacon solid. */
+  sweep(durationS: number): void;
+  /** Current world position (for the director's suction motes). */
+  getPosition(out: THREE.Vector3): THREE.Vector3;
+}
+
 /**
  * Faintly glowing disc + edge ring that anchors a structure to the floor —
  * its position stays visible in the structure's color even when the body
@@ -216,9 +228,10 @@ export function buildApiCore(): ApiCoreHandle {
 }
 
 // ---------------------------------------------------------------------------
-// 3. PostgreSQL — open vault cage with a floating crystal.
+// 3. PostgreSQL — open vault cage with a floating crystal that brightens
+//    whenever a metadata write arrives.
 // ---------------------------------------------------------------------------
-export function buildPostgres(): Structure {
+export function buildPostgres(): PostgresHandle {
   const group = new THREE.Group();
   const cage = bodyMaterial(COLORS.ice, 0.15, { flatShading: true });
 
@@ -252,13 +265,20 @@ export function buildPostgres(): Structure {
   group.add(label.object);
 
   const crystalBase = crystal.material.emissiveIntensity;
+  let writeLeft = 0;
 
   return {
     group,
+    pulse: () => {
+      writeLeft = 0.5;
+    },
     update: (dt, t) => {
       crystal.rotation.y += dt * 0.5;
       crystal.position.y = 1.8 + Math.sin(t * 1.1) * 0.08;
-      crystal.material.emissiveIntensity = crystalBase * (1 + 0.15 * Math.sin(t * 0.9 + 0.6));
+      if (writeLeft > 0) writeLeft -= dt;
+      const write = Math.max(writeLeft, 0) / 0.5;
+      crystal.material.emissiveIntensity =
+        crystalBase * (1 + 0.15 * Math.sin(t * 0.9 + 0.6)) * (1 + write * 1.1);
     },
   };
 }
@@ -592,7 +612,7 @@ export function buildNginx(): Structure {
 //    parts live in a `hull` subgroup so it can lean into turns without
 //    tilting the label or the underglow pad.
 // ---------------------------------------------------------------------------
-export function buildCleaner(): Structure {
+export function buildCleaner(): CleanerHandle {
   const group = new THREE.Group();
   const hull = new THREE.Group();
   group.add(hull);
@@ -674,33 +694,53 @@ export function buildCleaner(): Structure {
   group.add(label.object);
 
   // Lazy figure-eight around wherever scene.ts parked it, leaning into
-  // the turns like it means it.
+  // the turns like it means it. The patrol runs on its own clock (pathT)
+  // so a sweep can pause it without the position jumping on resume.
   let home: THREE.Vector3 | null = null;
   let prevHeading = 0;
+  let pathT = 0;
+  let sweepLeft = 0;
+  let brushSpeed = 9;
   return {
     group,
+    sweep: (durationS) => {
+      sweepLeft = durationS;
+    },
+    getPosition: (out) => out.copy(group.position),
     update: (dt, t) => {
       home ??= group.position.clone();
-      const x = home.x + Math.sin(t * 0.25) * 2.6;
-      const z = home.z + Math.sin(t * 0.5) * 1.3;
+      const sweeping = sweepLeft > 0;
+      if (sweeping) sweepLeft -= dt;
+      else pathT += dt;
+
+      const x = home.x + Math.sin(pathT * 0.25) * 2.6;
+      const z = home.z + Math.sin(pathT * 0.5) * 1.3;
       // Face the direction of travel (derivatives of the path above).
-      const dx = Math.cos(t * 0.25) * 0.25 * 2.6;
-      const dz = Math.cos(t * 0.5) * 0.5 * 1.3;
+      const dx = Math.cos(pathT * 0.25) * 0.25 * 2.6;
+      const dz = Math.cos(pathT * 0.5) * 0.5 * 1.3;
       group.position.set(x, group.position.y, z);
       const heading = Math.atan2(dx, dz);
       group.rotation.y = heading;
 
-      // Lean from turn rate (wrapped so the ±π seam doesn't kick).
+      // Lean from turn rate (wrapped so the ±π seam doesn't kick);
+      // settles flat while parked for a sweep.
       let dh = heading - prevHeading;
       if (dh > Math.PI) dh -= Math.PI * 2;
       if (dh < -Math.PI) dh += Math.PI * 2;
       prevHeading = heading;
-      const lean = THREE.MathUtils.clamp((dh / Math.max(dt, 1e-3)) * 0.12, -0.2, 0.2);
+      const lean = sweeping
+        ? 0
+        : THREE.MathUtils.clamp((dh / Math.max(dt, 1e-3)) * 0.12, -0.2, 0.2);
       hull.rotation.z += (lean - hull.rotation.z) * Math.min(dt * 6, 1);
 
-      for (const brush of brushes) brush.rotation.y += dt * 9;
-      // Beacon winks rather than glows — pow() turns a sine into a blink.
-      tip.material.emissiveIntensity = tipBase * (0.3 + 1.4 * Math.pow(Math.max(Math.sin(t * 1.6), 0), 8));
+      // Brushes surge while sweeping, ease back after.
+      brushSpeed += ((sweeping ? 30 : 9) - brushSpeed) * Math.min(dt * 4, 1);
+      for (const brush of brushes) brush.rotation.y += dt * brushSpeed;
+
+      // Beacon winks on patrol — burns solid while working.
+      tip.material.emissiveIntensity = sweeping
+        ? tipBase * 1.8
+        : tipBase * (0.3 + 1.4 * Math.pow(Math.max(Math.sin(t * 1.6), 0), 8));
     },
   };
 }

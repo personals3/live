@@ -12,7 +12,9 @@ import {
   buildValkey,
   makeGroundPad,
   type ApiCoreHandle,
+  type CleanerHandle,
   type FurnaceHandle,
+  type PostgresHandle,
   type StorageHandle,
   type Structure,
   type ValkeyHandle,
@@ -30,11 +32,17 @@ export interface SceneControls {
   furnace: FurnaceHandle;
   storage: StorageHandle;
   valkey: ValkeyHandle;
+  postgres: PostgresHandle;
+  cleaner: CleanerHandle;
   particles: ParticleSystem;
   /** Tunnel → API → Storage (uploads ride this). */
   uploadRoute: THREE.CatmullRomCurve3;
   /** Storage → Nginx → out of the room (downloads/streams). */
   downloadRoute: THREE.CatmullRomCurve3;
+  /** API → Valkey ring and back — the rate-limit round trip. */
+  valkeyGlintRoute: THREE.CatmullRomCurve3;
+  /** API → Postgres vault — metadata writes. */
+  postgresRoute: THREE.CatmullRomCurve3;
   /** Where transcode-done bursts erupt (above the furnace). */
   furnaceTop: THREE.Vector3;
   /** Red shockwave on the floor from the API core — 5xx errors. */
@@ -174,7 +182,8 @@ export function buildScene(scene: THREE.Scene): SceneControls {
 
   const api = buildApiCore();
   place(api, 0, 0, 0, 0.15, 2.2, COLORS.green);
-  place(buildPostgres(), -7, 0, -1, 0.35, 2.0, COLORS.ice);
+  const postgres = buildPostgres();
+  place(postgres, -7, 0, -1, 0.35, 2.0, COLORS.ice);
   const valkey = buildValkey();
   place(valkey, -4, 0, 3.5, 0.5, 1.3, COLORS.amber);
   const furnace = buildFurnace();
@@ -187,7 +196,8 @@ export function buildScene(scene: THREE.Scene): SceneControls {
   // Horn opens along local +Z — aim it away from the room's center.
   nginx.group.lookAt(new THREE.Vector3(7, 0, -13));
 
-  place(buildCleaner(), 0, 0, 6.5, 1.1); // pad built in — travels with the drone
+  const cleaner = buildCleaner();
+  place(cleaner, 0, 0, 6.5, 1.1); // pad built in — travels with the drone
 
   // Assembly intro driver. Cheap no-op after the last structure lands.
   let introDone = false;
@@ -285,6 +295,20 @@ export function buildScene(scene: THREE.Scene): SceneControls {
     new THREE.Vector3(7, 1.8, -13), // out along the horn's aim
     new THREE.Vector3(9.5, 2.0, -17.5), // fades into the fog
   ]);
+  // Short hot-path hops: out one arc, back a slightly lower one so the
+  // round trip doesn't retrace itself.
+  const valkeyGlintRoute = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 2.6, 0),
+    new THREE.Vector3(-2.2, 2.7, 1.6),
+    new THREE.Vector3(-4, 1.7, 3.5), // the ring
+    new THREE.Vector3(-2.0, 1.9, 2.1),
+    new THREE.Vector3(0, 2.2, 0.4),
+  ]);
+  const postgresRoute = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 2.8, 0),
+    new THREE.Vector3(-3.6, 3.3, -0.8),
+    new THREE.Vector3(-7, 2.0, -1), // into the vault, at the crystal
+  ]);
 
   const particles = new ParticleSystem(scene);
   updatables.push((dt) => particles.update(dt));
@@ -295,9 +319,13 @@ export function buildScene(scene: THREE.Scene): SceneControls {
     furnace,
     storage,
     valkey,
+    postgres,
+    cleaner,
     particles,
     uploadRoute,
     downloadRoute,
+    valkeyGlintRoute,
+    postgresRoute,
     furnaceTop: new THREE.Vector3(7, 2.6, -1.5),
     errorRipple: () => {
       rippleAge = 0;

@@ -106,7 +106,17 @@ into the fog · **transcode_start** = furnace ignites with heat shimmer,
 progress arc fills · **transcode_done** = magenta burst (red if failed) ·
 **error** = red flicker on the API bands · **request** = the Valkey ring
 spins up · **stats** = tank level, req/min + disk + active-jobs counters,
-API pulse rate, uptime in the HUD. Privacy is structural: the protocol
+API pulse rate, uptime in the HUD.
+
+Hot-path traffic (smaller and subtler than the journeys, since it's
+constant): every request fires a tiny amber **glint** API → Valkey ring
+and back — the rate-limit round trip; metadata writes send a small
+ice-blue pulse API → **Postgres** vault and the crystal brightens on
+arrival (always for uploads/downloads/transcode lifecycle, 1-in-3 for
+plain requests, so it reads consulted-often-not-always); and when stats
+show disk usage *dropping*, the **cleaner** visibly earns it — parks its
+patrol, surges its brushes, burns its beacon solid, and pulls a few
+faint motes off the floor while the tank eases down in sync. Privacy is structural: the protocol
 (`events.ts`) only has fields for type, size bucket, opaque job ids, and
 timestamps — nothing user-identifying exists to render.
 
